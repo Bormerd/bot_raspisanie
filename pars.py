@@ -20,7 +20,7 @@ bot_token = os.getenv("BOT_TOKEN")
 # Включаем логирование
 logging.basicConfig(level=logging.INFO)
 
-# Инициализируем бота и диспетчер
+# Инициализируем бота и диспетчер 
 bot = Bot(token=bot_token)
 dp = Dispatcher()
 

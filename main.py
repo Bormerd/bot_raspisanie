@@ -1,4 +1,4 @@
-#API для расписания костромского политеха
+#API для расписания костромского политеха 
 
 import asyncio
 from typing import Iterable, List
