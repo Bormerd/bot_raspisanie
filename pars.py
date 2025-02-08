@@ -1,23 +1,17 @@
 import logging
-import os
-import io
-import random
-import requests
-import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram import F
 from dotenv import load_dotenv
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
-import uvicorn
-from fastapi import FastAPI
-from contextlib import asynccontextmanager
+import asyncio
+from docx import Document
+import pandas as pd
+import io
+import random
+import requests
+import os
 
-# Импорт функций и классов из main.py
-from main import lifespan, get_schedules, get_schedule, get_groups, get_group_by_id, get_discipline, get_discipline_by_id
 
 load_dotenv(".env")
 
@@ -30,50 +24,8 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=bot_token)
 dp = Dispatcher()
 
-# Путь к вашему файлу credentials.json
-SERVICE_ACCOUNT_FILE = 'credentials.json'
-SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
-
-# Аутентификация
-credentials = service_account.Credentials.from_service_account_file(
-    SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-service = build('drive', 'v3', credentials=credentials)
-
-# ID файла на Google Диске
-FILE_ID = '1Kyvu7G2Gu72FrsWOocGliknataRUcYS4'  # Замените на реальный ID файла
-
-# Запуск FastAPI в фоновом режиме
-app = FastAPI(lifespan=lifespan)
-
-@app.get("/schedules/")
-async def schedules():
-    return await get_schedules()
-
-@app.get("/schedule/{schedule_id}/")
-async def schedule(schedule_id: int, group_id: int = None):
-    return await get_schedule(schedule_id, group_id)
-
-@app.get("/groups/")
-async def groups():
-    return await get_groups()
-
-@app.get("/group/{group_id}/")
-async def group(group_id: int):
-    return await get_group_by_id(group_id)
-
-@app.get("/disciplines/")
-async def disciplines():
-    return await get_discipline()
-
-@app.get("/discipline/{discipline_id}/")
-async def discipline(discipline_id: int):
-    return await get_discipline_by_id(discipline_id)
-
-# Запуск FastAPI в фоновом режиме
-async def run_fastapi():
-    config = uvicorn.Config(app, host="0.0.0.0", port=8000)
-    server = uvicorn.Server(config)
-    await server.serve()
+# Прямая ссылка на .docx файл
+FILE_URL = "https://docs.google.com/document/d/1aA9lX1n59qsubeP470RRc4telh3O0Tqf/edit"  # Замените на реальную ссылку
 
 # Обработчик команды /start
 @dp.message(Command("start"))
@@ -101,18 +53,33 @@ async def send_bells_photo(message: types.Message):
 @dp.message(F.text == "Расписание")
 async def handle_schedule_request(message: types.Message):
     try:
-        # Получаем расписание из API
-        response = requests.get("http://localhost:8000/schedules/")
-        if response.status_code == 200:
-            schedule_data = response.json()
-            # Форматируем расписание для отправки
-            schedule_text = "Расписание:\n"
-            for entity in schedule_data['entities']:
-                schedule_text += f"{entity['date']}: {entity['update_at']}\n"
-            # Отправляем расписание пользователю
-            await message.answer(schedule_text, parse_mode="HTML")
-        else:
-            await message.answer("Не удалось получить расписание", parse_mode="HTML")
+        # Загрузка файла по ссылке
+        response = requests.get(FILE_URL)
+        if response.status_code != 200:
+            await message.answer("Не удалось загрузить файл. Проверьте ссылку.")
+            return
+
+        # Проверка, что файл действительно .docx
+        if not response.headers.get('Content-Type', '').lower() == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+            await message.answer("Файл не является .docx документом.")
+            return
+
+        # Преобразование файла
+        file_io = io.BytesIO(response.content)
+        doc = Document(file_io)
+        data = []
+        for table in doc.tables:
+            for row in table.rows:
+                data.append([cell.text for cell in row.cells])
+
+        df = pd.DataFrame(data)
+        excel_file = io.BytesIO()
+        df.to_excel(excel_file, index=False)
+        excel_file.seek(0)
+
+        # Отправка файла пользователю
+        await message.answer_document(types.InputFile(excel_file, filename="schedule.xlsx"))
+
     except Exception as e:
         logging.error(f"Произошла ошибка: {e}")
         await message.answer(f"Произошла ошибка: {e}")
@@ -126,17 +93,19 @@ async def unknown_message(message: types.Message):
     await message.answer("Я тебя не понимаю", parse_mode="HTML")
 
 # Обработчик фото
-@dp.message(F.photo) 
-async def get_user_photo(message: types.Message): 
-    phrases = [ "Зачёт", "Ну такое",
-               "Может ещё какие варианты есть", "Одобряю" ] 
-    rp = random.choice(phrases) 
+@dp.message(F.photo)
+async def get_user_photo(message: types.Message):
+    phrases = [
+        "Зачёт",
+        "Ну такое",
+        "Может ещё какие варианты есть",
+        "Одобряю"
+    ]
+    rp = random.choice(phrases)
     await message.answer(rp, parse_mode="HTML")
-    
-async def main(): 
-    # Запуск FastAPI в фоновом режиме
-    asyncio.create_task(run_fastapi())
-    # Запуск бота
+
+# Запуск бота
+async def main():
     await dp.start_polling(bot)
 
 if __name__ == "__main__":

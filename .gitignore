@@ -2,10 +2,3 @@ pars/
 credentials.json
 aio.py
 .env
-/.lprof
-/.vscode
-/sqlite.db
-/venv
-/.venv
-/__pycache__
-*.pyc
