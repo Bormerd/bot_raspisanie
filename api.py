@@ -5,7 +5,8 @@ from typing import Iterable, List
 from datetime import date as Date
 from datetime import datetime as DT
 from contextlib import asynccontextmanager
-
+from pydantic import BaseModel
+from typing import Dict
 from fastapi import FastAPI
 
 from core import models
@@ -16,7 +17,11 @@ from core.parser import google
 # pylint: disable=E1101
 TIME_SHORT_SLEEP = 15 * 60 * 60
 TIME_LONG_SLEEP = 15 * 60 * 60 * 60
+user_roles: Dict[int, str] = {}
 
+class UserRole(BaseModel):
+    id_user: int
+    role: str
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -42,6 +47,21 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.post('/create/')
+async def create_user(user: UserRole):
+    # Сохраняем роль пользователя в словаре
+    user_roles[user.id_user] = user.role
+    return {user.id_user: user.role}
+
+@app.get('/user/role/{id_user}')
+async def get_user_role(id_user: int):
+    # Получаем роль пользователя из словаря
+    role = user_roles.get(id_user)
+    if role is None:
+        return {'user_role': 'None'}
+    return {'user_role': role}
 
 
 @app.get('/updates/')
@@ -185,7 +205,7 @@ async def get_group_by_id(group_id: int):
 
 @app.get('/disciplines/')
 async def get_discipline():
-    """Получить список групп"""
+    """Получить список дисциплин"""
     disciplines = await DB.aio_execute(
         models.Discipline.select()
     )

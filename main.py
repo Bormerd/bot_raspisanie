@@ -5,13 +5,13 @@ from aiogram import Bot,Dispatcher
 from dotenv import load_dotenv
 from bot.handlers.handlers import function
 import uvicorn
-import main2
+import api
 
 load_dotenv(".env")
 bot=os.getenv('bot')
 bot=Bot(token=bot)
 dp = Dispatcher()
-app = main2.app
+app = api.app
 
 # Функция для запуска FastAPI
 async def start_fastapi():
