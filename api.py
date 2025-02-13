@@ -53,7 +53,7 @@ app = FastAPI(lifespan=lifespan)
 async def create_user(user: UserRole):
     # Сохраняем роль пользователя в словаре
     user_roles[user.id_user] = user.role
-    return {user.id_user: user.role}
+
 
 @app.get('/user/role/{id_user}')
 async def get_user_role(id_user: int):

@@ -13,7 +13,6 @@ def function(dp:Dispatcher):
     """"Регистрация команд"""
     # переписать команды
     dp.callback_query.register(reg.register_ending,stat.User.reg_end)
-    dp.callback_query.register(reg.teacher_register,F.data=='Преподаватель')
-    dp.callback_query.register(reg.student_register,F.data== 'Студент')
+    dp.callback_query.register(reg.teacher_register,F.data == "Пеподаватель")
+    dp.callback_query.register(reg.student_register,F.data == "Студент")
     dp.message.register(reg.command_start_handler, CommandStart())
-    dp.message.register(reg.set_role_user,stat.User.role)

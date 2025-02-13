@@ -2,40 +2,59 @@
 # может не хватать библеотек
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton,InlineKeyboardMarkup
-
+import aiohttp
 Keyboard_register = InlineKeyboardMarkup(inline_keyboard=[
     [
     InlineKeyboardButton(text="Преподаватель", callback_data='Преподаватель'),
     InlineKeyboardButton(text="Студент", callback_data='Студент')
     ]])
-
-def group():
+FASTAPI_URL = 'http://localhost:8000'
+async def group():
     """Функция для вывода кнопок с группами"""
-    keyboard = InlineKeyboardBuilder()
-    i=False
-    group = response.get(FASTAPI_URL+ '/groups/')
-    for group_name in group:
-        keyboard.add(InlineKeyboardButton(text=f"{group_name["group_name"]}",
-            callback_data = f'group_{group_name["group_name"]}'
-            ))
-        i = True
-
+    i = False
+    
+    keyboard = InlineKeyboardMarkup(row_width=4)  # Устанавливаем ширину строки в 4 кнопки
+    async with aiohttp.ClientSession() as session:
+        async with session.get(FASTAPI_URL + '/groups/') as response:
+            if response.status == 200:
+                data = await response.json()  # Получаем данные в формате JSON
+                groups = data.get("entities", [])  # Извлекаем список групп из поля "entities"
+                
+                if not groups:
+                    print("Нет доступных групп")
+                    return keyboard  # Возвращаем пустую клавиатуру, если групп нет
+                
+                for group in groups:
+                    keyboard.add(InlineKeyboardButton(
+                        text=f"{group['name']}",
+                        callback_data=f'group_{group["name"]}'
+                    ))
+                i = True
+            else:
+                print("Ошибка при получении групп")
     if i:
-        return keyboard.adjust(2).as_markup()
+        return keyboard
     return i
 
-def discipline():
+async def discipline(FASTAPI_URL):
     """Функция для вывода кнопок с группами"""
-    keyboard = InlineKeyboardBuilder()
+    keyboard = InlineKeyboardMarkup(row_width=4)
     i = False
-    discipline = response.get (FASTAPI_URL + '/disciplines/')
-    for discipline_name in discipline:
-
-        keyboard.add(InlineKeyboardButton(text=f"{discipline_name["discipline_name"]}",
-            callback_data = f'discipline_{discipline_name["discipline_name"]}'
-            ))
-        i = True
-
+    async with aiohttp.ClientSession() as session:
+            async with session.get(FASTAPI_URL + '/disciplines/') as response:
+                if response.status == 200:
+                    disciplines = await response.json()
+                    for discipline_name in disciplines:
+                        keyboard.add(
+                            InlineKeyboardButton(
+                                text=discipline_name["discipline_name"],
+                                callback_data=f'discipline_{discipline_name["discipline_name"]}'
+                            )
+                        )
+                    i = True
+                else:
+                    # Обработка ошибки, если API не доступен
+                    print("Ошибка при получении дисциплин")
     if i:
-        return keyboard.adjust(2).as_markup()
+        return keyboar
     return i

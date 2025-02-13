@@ -7,3 +7,7 @@ class User(StatesGroup):
     reg_end=State()
     group_add=State()
     discipline=State()
+    set_role_user = State()
+    set_teacher = State ()
+    set_student = State ()
+    
