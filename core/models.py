@@ -8,7 +8,7 @@ from peewee_async import PooledMySQLDatabase, AioModel
 DB_NAME = "schedule"
 DB_CONFIG = {
     "user": "root",
-    "password": "a2195966",
+    "password": "123456",
     "host": "localhost",
     "port": 3306,
 }
