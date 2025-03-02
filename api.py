@@ -6,7 +6,7 @@ from datetime import date as Date
 from datetime import datetime as DT
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
-from typing import Dict
+from typing import Dict, Optional
 from fastapi import FastAPI
 
 from core import models
@@ -65,8 +65,8 @@ async def create_user(
     """
 
     # Создаём пользователя
-    user = await db_manager.create(
-        Users,
+    user = await DB.aio_execute(
+        models.Users,
         user_id=user_id,
         category_type=category_type,
         category_name=category_name

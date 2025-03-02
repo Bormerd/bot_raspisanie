@@ -25,9 +25,8 @@ async def student_register(callbak: CallbackQuery, state: FSMContext):
     await callbak.message.answer("Роль успешно присвоена.")
     
     keyboard = await reg.group()
-    
     if keyboard:
-        await callbak.message.answer("Выберите свою группу", reply_markup=keyboard)
+        await callbak.message.answer("Выберите свою группу, для получения рассписания", reply_markup=keyboard)
         await state.set_state(stat.User.reg_end)
     else:
         await callbak.message.answer("На данный момент такой группы нет.")
@@ -47,17 +46,17 @@ async def teacher_register(callbak: CallbackQuery, state: FSMContext):
 async def register_ending(callbak: CallbackQuery, state: FSMContext):
     """Обработчик завершения регистраций"""
     response = callbak.data.split('_')
-    if disciplines[1] == 'discipline':
-        await service.get_request(f'/create/',json={
-            user_id: callbak.message.chat.id,
-            category_type: 'disciplines',
-            category_name: response
+    if response[0] == 'discipline':
+        await service.post_request(f'/create/',json={
+            'user_id': str(callbak.message.chat.id),
+            'category_type': 'disciplines',
+            'category_name': response[1]
         })
     else:
-        await service.get_request(f'/create/',json={
-            user_id: callbak.message.chat.id,
-            category_type: 'group',
-            category_name: response
+        await service.post_request(f'/create/',json={
+            'user_id': str(callbak.message.chat.id),
+            'category_type': 'group',
+            'category_name': response[1]
         })
     await callbak.message.delete()
     await state.clear()
