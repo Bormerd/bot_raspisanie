@@ -13,7 +13,7 @@ bot=Bot(token=bot)
 dp = Dispatcher()
 app = api.app
 
-# Функция для запуска FastAPI
+
 async def start_fastapi():
     config = uvicorn.Config(app, host="0.0.0.0", port=8000)
     server = uvicorn.Server(config)

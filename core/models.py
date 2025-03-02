@@ -36,6 +36,13 @@ class BaseModel(AioModel):
         """Подключение к БД"""
         database = DB
 
+class Users(BaseModel):
+    """Расписание"""
+    id = peewee.AutoField(primary_key=True)
+    user_id = peewee.CharField()  # Автоинкрементный идентификатор
+    category_type = peewee.CharField(max_length=50, choices=[('group', 'Группа'), ('discipline', 'Дисциплина')])  # Тип категории
+    category_name = peewee.CharField(max_length=255)  # Название группы или дисциплины
+
 
 class Schedule(BaseModel):
     """Расписание"""
@@ -98,6 +105,10 @@ class Lesson(BaseModel):
         return (f"{self.schedule.date} {self.group.name} {self.pair} "
                 f"{self.discipline.name} {self.auditory.name}")
 
+class UserDisciplines(BaseModel):
+    """Модель связи между пользователями и дисциплинами"""
+    user = peewee.ForeignKeyField(Users, backref='disciplines')  # Внешний ключ на пользователя
+    discipline = peewee.ForeignKeyField(Discipline, backref='users')  # Внешний ключ на дисциплину
 
 async def update_schedule(date: datetime, doc_id: str, schedule_data: dict):
     """Проверка на изменения в расписании и возврат новых объектов"""
@@ -164,15 +175,14 @@ async def update_schedule(date: datetime, doc_id: str, schedule_data: dict):
                 )
                 print(f"Новое расписание: {new_lesson}.")
 
-
 if __name__ == "__main__":
     with mysql.connector.connect(**DB_CONFIG) as connect:
         with connect.cursor() as cursor:
             cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}`;")
-    DB = PooledMySQLDatabase(DB_NAME, **DB_CONFIG, max_connections=20)
+        DB = PooledMySQLDatabase(DB_NAME, **DB_CONFIG, max_connections=20)
     with DB:
         DB.create_tables(
-            [Schedule, Group, Discipline, Auditory, Lesson],
+            [Users, Schedule, Group, Discipline, Auditory, Lesson, UserDisciplines],
             safe=True
         )
-        print("Tables are created.")
+    print("Tables are created.")

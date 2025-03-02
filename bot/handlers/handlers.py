@@ -3,11 +3,8 @@
 from aiogram.filters import CommandStart
 from aiogram import Dispatcher, F
 import bot.handlers.register as reg
-# import bot.handlers.admin as adm
 import bot.state.state as stat
-# import bot.filters.cheak as cheak
-# from database.model import start_db
-
+from RequestsUrl import AddressService
 
 def function(dp:Dispatcher):
     """"Регистрация команд"""

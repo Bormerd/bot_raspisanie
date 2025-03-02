@@ -8,7 +8,6 @@ import Bot.keys_board.taecher as tea
 from Bot.stater.state import USR
 from DataBase.dass import User,Image
 
-
 async def menu_teacher(message:Message,state:FSMContext,bot: Bot) -> None:
     """""
     Функция для вывода меню

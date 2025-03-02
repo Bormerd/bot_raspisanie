@@ -17,11 +17,6 @@ from core.parser import google
 # pylint: disable=E1101
 TIME_SHORT_SLEEP = 15 * 60 * 60
 TIME_LONG_SLEEP = 15 * 60 * 60 * 60
-user_roles: Dict[int, str] = {}
-
-class UserRole(BaseModel):
-    id_user: int
-    role: str
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -48,20 +43,34 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+@app.get('/user/role/{user_id}')
+async def get_user_role(user_id: str):
+    user = await models.UserDisciplines.aio_get_or_none(user_id=user_id)
+    if user:
+        return {'message': 'OK'}
 
 @app.post('/create/')
-async def create_user(user: UserRole):
-    # Сохраняем роль пользователя в словаре
-    user_roles[user.id_user] = user.role
+async def create_user(
+    user_id: str,
+    category_type: str,
+    category_name: Optional[str]
+) -> dict:
+    """
+    Создать пользователя и вернуть информацию о нём.
 
+    :param user_id: Идентификатор пользователя.
+    :param category_type: Тип категории ('group' или 'discipline').
+    :param category_name: Название группы или дисциплины (опционально).
+    :return: Словарь с информацией о созданном пользователе.
+    """
 
-@app.get('/user/role/{id_user}')
-async def get_user_role(id_user: int):
-    # Получаем роль пользователя из словаря
-    role = user_roles.get(id_user)
-    if role is None:
-        return {'user_role': 'None'}
-    return {'user_role': role}
+    # Создаём пользователя
+    user = await db_manager.create(
+        Users,
+        user_id=user_id,
+        category_type=category_type,
+        category_name=category_name
+    )
 
 
 @app.get('/updates/')

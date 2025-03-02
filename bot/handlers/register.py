@@ -4,18 +4,15 @@ from aiogram.fsm.context import FSMContext
 import bot.state.state as stat
 import bot.keys_board.register as reg
 import aiohttp  # Используем aiohttp для асинхронных запросов
-
-FASTAPI_URL = 'http://localhost:8000'
+from RequestsUrl import service
 
 async def command_start_handler(message: Message, state: FSMContext) -> None:
     """Обработчик команды /start
     Выбор типа пользователя
     """
-    async with aiohttp.ClientSession() as session:
-        async with session.get(FASTAPI_URL + f'/user/role/{message.chat.id}') as response:
-            role = await response.json()
+    response = await service.get_request(f'/user/role/{message.chat.id}')
     
-    if role:
+    if response != 'null':
         await message.answer("Выберите роль", reply_markup=reg.Keyboard_register)
     else:
         await message.answer(
@@ -25,15 +22,7 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
 # Ловим по callback
 async def student_register(callbak: CallbackQuery, state: FSMContext):
     """Обработчик ввода или выбора группы"""
-    role_text = callbak.data  # Предполагаем, что данные кнопки содержат текст роли
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(FASTAPI_URL + '/create/', json={
-            'id_user': callbak.message.chat.id,
-            "role": role_text
-            }) as response:
-            if response.status == 200:
-                await callbak.message.answer("Роль успешно присвоена.")
+    await callbak.message.answer("Роль успешно присвоена.")
     
     keyboard = await reg.group()
     
@@ -45,17 +34,8 @@ async def student_register(callbak: CallbackQuery, state: FSMContext):
 
 async def teacher_register(callbak: CallbackQuery, state: FSMContext):
     """Обработчик выбора предмета"""
-    role_text = callbak.data  # Предполагаем, что данные кнопки содержат текст роли
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(FASTAPI_URL + '/create/', json={
-            'id_user': callbak.message.chat.id,"role": role_text
-            }) as response:
-            if response.status == 200:
-                await callbak.message.answer("Роль успешно присвоена.")
-    async with aiohttp.ClientSession() as session:
-        async with session.get(FASTAPI_URL + '/disciplines/') as response:
-            disciplines = await response.json()
+    await callbak.message.answer("Роль успешно присвоена.")
+    disciplines = service.get_request('/disciplines/')
     disciplines = disciplines.get('entities')
     disciplines = set(disciplines)
     if disciplines:
@@ -66,6 +46,19 @@ async def teacher_register(callbak: CallbackQuery, state: FSMContext):
 
 async def register_ending(callbak: CallbackQuery, state: FSMContext):
     """Обработчик завершения регистраций"""
+    response = callbak.data.split('_')
+    if disciplines[1] == 'discipline':
+        await service.get_request(f'/create/',json={
+            user_id: callbak.message.chat.id,
+            category_type: 'disciplines',
+            category_name: response
+        })
+    else:
+        await service.get_request(f'/create/',json={
+            user_id: callbak.message.chat.id,
+            category_type: 'group',
+            category_name: response
+        })
     await callbak.message.delete()
     await state.clear()
     await callbak.message.answer("Вы зарегистрированы.")
