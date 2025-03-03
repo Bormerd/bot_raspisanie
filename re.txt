@@ -1,8 +1,0 @@
-gspread
-python-docx
-pandas
-aiogram
-oauth2client
-pydantic
-aiohttp
-typing-extensions
