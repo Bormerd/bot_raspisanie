@@ -5,25 +5,21 @@ import bot.state.state as stat
 import bot.keys_board.register as reg
 import aiohttp  # Используем aiohttp для асинхронных запросов
 from RequestsUrl import service
-
+from aiohttp import ClientResponseError
 async def command_start_handler(message: Message, state: FSMContext) -> None:
     """Обработчик команды /start
     Выбор типа пользователя
     """
-    response = await service.get_request(f'/user/role/{message.chat.id}')
+    response = await service.get_request(f'/user/{message.chat.id}/')
     
     if response != 'null':
+        await service.post_request(f'/create/{message.chat.id}/')
         await message.answer("Выберите роль", reply_markup=reg.Keyboard_register)
     else:
-        await message.answer(
-            f"Вы уже зарегистрированы\n {message.from_user.full_name}, выберите роль",
-            reply_markup=reg.Keyboard_register
-        )
-# Ловим по callback
+        await message.answer("Вы уже зарегистрированы")
+
 async def student_register(callbak: CallbackQuery, state: FSMContext):
-    """Обработчик ввода или выбора группы"""
-    await callbak.message.answer("Роль успешно присвоена.")
-    
+    """Обработчик ввода или выбора группы"""   
     keyboard = await reg.group()
     if keyboard:
         await callbak.message.answer("Выберите свою группу, для получения рассписания", reply_markup=keyboard)
@@ -33,12 +29,9 @@ async def student_register(callbak: CallbackQuery, state: FSMContext):
 
 async def teacher_register(callbak: CallbackQuery, state: FSMContext):
     """Обработчик выбора предмета"""
-    await callbak.message.answer("Роль успешно присвоена.")
-    disciplines = service.get_request('/disciplines/')
-    disciplines = disciplines.get('entities')
-    disciplines = set(disciplines)
-    if disciplines:
-        await callbak.message.answer(f"Выберите свою дисциплину{disciplines}", reply_markup=disciplines)
+    keyboard = await reg.discipline()
+    if keyboard:
+        await callbak.message.answer(f"Выберите свою дисциплину", reply_markup=keyboard)
         await state.set_state(stat.User.reg_end)
     else:
         await callbak.message.answer("На данный момент такой дисциплины нет.")
@@ -46,17 +39,17 @@ async def teacher_register(callbak: CallbackQuery, state: FSMContext):
 async def register_ending(callbak: CallbackQuery, state: FSMContext):
     """Обработчик завершения регистраций"""
     response = callbak.data.split('_')
+    print (response)
+    print (callbak.message.chat.id)
     if response[0] == 'discipline':
-        await service.post_request(f'/create/',json={
-            'user_id': str(callbak.message.chat.id),
-            'category_type': 'disciplines',
-            'category_name': response[1]
+        await service.post_request('/create/teacher/', json={
+            'chat_id': callbak.message.chat.id,
+            'type': response[1]
         })
     else:
-        await service.post_request(f'/create/',json={
-            'user_id': str(callbak.message.chat.id),
-            'category_type': 'group',
-            'category_name': response[1]
+        await service.post_request('/create/student/',json={
+            'chat_id': callbak.message.chat.id,
+            'type': response[1]
         })
     await callbak.message.delete()
     await state.clear()

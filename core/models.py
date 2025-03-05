@@ -36,12 +36,9 @@ class BaseModel(AioModel):
         """Подключение к БД"""
         database = DB
 
-class Users(BaseModel):
+class User(BaseModel):
     """Расписание"""
-    id = peewee.AutoField(primary_key=True)
-    user_id = peewee.CharField()  # Автоинкрементный идентификатор
-    category_type = peewee.CharField(max_length=50, choices=[('group', 'Группа'), ('discipline', 'Дисциплина')])  # Тип категории
-    category_name = peewee.CharField(max_length=255)  # Название группы или дисциплины
+    chat_id = peewee.IntegerField()
 
 
 class Schedule(BaseModel):
@@ -105,10 +102,35 @@ class Lesson(BaseModel):
         return (f"{self.schedule.date} {self.group.name} {self.pair} "
                 f"{self.discipline.name} {self.auditory.name}")
 
-class UserDisciplines(BaseModel):
+class Student(BaseModel):
+    """Модель связи между пользователями и группами"""
+    user_id = peewee.ForeignKeyField(
+        User, 
+        backref='group',
+        on_delete="CASCADE",
+        on_update="CASCADE"
+    )
+    group_id = peewee.ForeignKeyField(
+        Group, 
+        backref='user',
+        on_delete="CASCADE",
+        on_update="CASCADE"
+    )
+
+class Teacher(BaseModel):
     """Модель связи между пользователями и дисциплинами"""
-    user = peewee.ForeignKeyField(Users, backref='disciplines')  # Внешний ключ на пользователя
-    discipline = peewee.ForeignKeyField(Discipline, backref='users')  # Внешний ключ на дисциплину
+    user_id = peewee.ForeignKeyField(
+        User, 
+        backref='disciplines',
+        on_delete="CASCADE",
+        on_update="CASCADE"
+        )
+    discipline_id = peewee.ForeignKeyField(
+        Discipline, 
+        backref='user',
+        on_delete="CASCADE",
+        on_update="CASCADE"
+        )
 
 async def update_schedule(date: datetime, doc_id: str, schedule_data: dict):
     """Проверка на изменения в расписании и возврат новых объектов"""
@@ -161,10 +183,6 @@ async def update_schedule(date: datetime, doc_id: str, schedule_data: dict):
                     await new_lesson.aio_save()
                     old_lesson.arhiv = True
                     await old_lesson.aio_save()
-                    print(
-                        f"Старое расписание: {old_lesson}. "
-                        f"Новое расписание: {new_lesson}."
-                    )
             else:
                 new_lesson = await Lesson.aio_create(
                     pair=pair,
@@ -173,7 +191,6 @@ async def update_schedule(date: datetime, doc_id: str, schedule_data: dict):
                     discipline=discipline,
                     group=group
                 )
-                print(f"Новое расписание: {new_lesson}.")
 
 if __name__ == "__main__":
     with mysql.connector.connect(**DB_CONFIG) as connect:
@@ -182,7 +199,7 @@ if __name__ == "__main__":
         DB = PooledMySQLDatabase(DB_NAME, **DB_CONFIG, max_connections=20)
     with DB:
         DB.create_tables(
-            [Users, Schedule, Group, Discipline, Auditory, Lesson, UserDisciplines],
+            [User, Schedule, Group, Discipline, Auditory, Lesson, Teacher, Student],
             safe=True
         )
     print("Tables are created.")

@@ -7,7 +7,7 @@ from datetime import datetime as DT
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from typing import Dict, Optional
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from core import models
 from core.models import DB
@@ -17,6 +17,10 @@ from core.parser import google
 # pylint: disable=E1101
 TIME_SHORT_SLEEP = 15 * 60 * 60
 TIME_LONG_SLEEP = 15 * 60 * 60 * 60
+
+class CreateUserType(BaseModel):
+    chat_id: int
+    type: str 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,35 +47,58 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-@app.get('/user/role/{user_id}')
-async def get_user_role(user_id: str):
-    user = await models.UserDisciplines.aio_get_or_none(user_id=user_id)
-    if user:
-        return {'message': 'OK'}
+@app.get('/user/{chat_id}/')
+async def get_user_role(chat_id: int):
+    user = await models.User.aio_get_or_none(chat_id=chat_id)
+    student = await models.Student.aio_get_or_none(user_id = user)
+    teacher = await models.Student.aio_get_or_none(user_id = user)
+    if student:
+        return {
+            'chat_id': user.chat_id,
+            'type': 'student',
+            'id': student.group_id
+        }
+    if teacher:
+        return {
+            'chat_id': user.chat_id,
+            'type': 'teacher',
+            'id': teacher.discipline_id
+    }
 
-@app.post('/create/')
-async def create_user(
-    user_id: str,
-    category_type: str,
-    category_name: Optional[str]
-) -> dict:
+@app.post('/create/{chat_id}')
+async def create_user(chat_id: int):
     """
-    Создать пользователя и вернуть информацию о нём.
-
-    :param user_id: Идентификатор пользователя.
-    :param category_type: Тип категории ('group' или 'discipline').
-    :param category_name: Название группы или дисциплины (опционально).
-    :return: Словарь с информацией о созданном пользователе.
+    Создать пользователя.
+    :param chat_id: Идентификатор пользователя.
     """
 
     # Создаём пользователя
-    user = await DB.aio_execute(
-        models.Users,
-        user_id=user_id,
-        category_type=category_type,
-        category_name=category_name
+    await models.User.aio_get_or_create(
+        chat_id=chat_id,
     )
+    return {'message': 'OK'}
 
+
+@app.post('/create/teacher/')
+async def create_teacher(response: CreateUserType):
+    try:
+        user, _ = await models.User.aio_get_or_create(chat_id=response.chat_id)
+        discipline, _ = await models.Discipline.aio_get_or_create(name=response.type)
+        await models.Teacher.aio_get_or_create(user_id=user, discipline_id=discipline)
+        return {'message': 'OK'}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post('/create/student/')
+async def create_student(response: CreateUserType):
+    try:
+        user, _ = await models.User.aio_get_or_create(chat_id=response.chat_id)
+        group, _ = await models.Group.aio_get_or_create(name=response.type)
+        await models.Student.aio_get_or_create(user_id=user, group_id=group)
+        return {'message': 'OK'}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get('/updates/')
 async def get_updates(
@@ -177,6 +204,10 @@ async def get_schedule(schedule_id: int, group_id: int = None):
         group=group
     )
 
+@app.get('/date/{id}')
+async def get_date_doc(id: int):
+    date = await models.Schedule.aio_get(id = id)
+    return {'date': date.date}
 
 @app.get('/groups/')
 async def get_groups():
