@@ -4,10 +4,8 @@ from peewee import IntegrityError
 from aiogram import Bot
 from aiogram.types import Message,CallbackQuery,BotCommand
 from aiogram.fsm.context import FSMContext
-import Bot.keys_board.taecher as tea
-from Bot.stater.state import USR
-from DataBase.dass import User,Image
-
+import bot.keys_board.teacher as tea
+from bot.state.state import User
 
 async def menu_teacher(message:Message,state:FSMContext,bot: Bot) -> None:
     """""

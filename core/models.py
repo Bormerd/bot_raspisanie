@@ -36,6 +36,10 @@ class BaseModel(AioModel):
         """Подключение к БД"""
         database = DB
 
+class User(BaseModel):
+    """Расписание"""
+    chat_id = peewee.IntegerField()
+
 
 class Schedule(BaseModel):
     """Расписание"""
@@ -98,6 +102,35 @@ class Lesson(BaseModel):
         return (f"{self.schedule.date} {self.group.name} {self.pair} "
                 f"{self.discipline.name} {self.auditory.name}")
 
+class Student(BaseModel):
+    """Модель связи между пользователями и группами"""
+    user_id = peewee.ForeignKeyField(
+        User, 
+        backref='group',
+        on_delete="CASCADE",
+        on_update="CASCADE"
+    )
+    group_id = peewee.ForeignKeyField(
+        Group, 
+        backref='user',
+        on_delete="CASCADE",
+        on_update="CASCADE"
+    )
+
+class Teacher(BaseModel):
+    """Модель связи между пользователями и дисциплинами"""
+    user_id = peewee.ForeignKeyField(
+        User, 
+        backref='disciplines',
+        on_delete="CASCADE",
+        on_update="CASCADE"
+        )
+    discipline_id = peewee.ForeignKeyField(
+        Discipline, 
+        backref='user',
+        on_delete="CASCADE",
+        on_update="CASCADE"
+        )
 
 async def update_schedule(date: datetime, doc_id: str, schedule_data: dict):
     """Проверка на изменения в расписании и возврат новых объектов"""
@@ -150,10 +183,6 @@ async def update_schedule(date: datetime, doc_id: str, schedule_data: dict):
                     await new_lesson.aio_save()
                     old_lesson.arhiv = True
                     await old_lesson.aio_save()
-                    print(
-                        f"Старое расписание: {old_lesson}. "
-                        f"Новое расписание: {new_lesson}."
-                    )
             else:
                 new_lesson = await Lesson.aio_create(
                     pair=pair,
@@ -162,17 +191,15 @@ async def update_schedule(date: datetime, doc_id: str, schedule_data: dict):
                     discipline=discipline,
                     group=group
                 )
-                print(f"Новое расписание: {new_lesson}.")
-
 
 if __name__ == "__main__":
     with mysql.connector.connect(**DB_CONFIG) as connect:
         with connect.cursor() as cursor:
             cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}`;")
-    DB = PooledMySQLDatabase(DB_NAME, **DB_CONFIG, max_connections=20)
+        DB = PooledMySQLDatabase(DB_NAME, **DB_CONFIG, max_connections=20)
     with DB:
         DB.create_tables(
-            [Schedule, Group, Discipline, Auditory, Lesson],
+            [User, Schedule, Group, Discipline, Auditory, Lesson, Teacher, Student],
             safe=True
         )
-        print("Tables are created.")
+    print("Tables are created.")
