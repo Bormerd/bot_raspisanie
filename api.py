@@ -49,6 +49,14 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get('/user/{chat_id}/')
 async def get_user_role(chat_id: int):
+    """получение аккаунта пользователя
+
+    Args:
+        chat_id (int): [chat_id user]
+
+    Returns:
+        [type]: [user info]
+    """
     user = await models.User.aio_get_or_none(chat_id=chat_id)
     student = await models.Student.aio_get_or_none(user_id = user)
     if student:
@@ -73,9 +81,13 @@ async def get_user_role(chat_id: int):
 
 @app.post('/create/{chat_id}')
 async def create_user(chat_id: int):
-    """
-    Создать пользователя.
-    :param chat_id: Идентификатор пользователя.
+    """Создание аккаунта пользователя
+
+    Args:
+        chat_id (int): [Chat id user]
+
+    Returns:
+        [message]: [OK (200)]
     """
 
     # Создаём пользователя
@@ -87,6 +99,17 @@ async def create_user(chat_id: int):
 
 @app.post('/create/teacher/')
 async def create_teacher(response: CreateUserType):
+    """Создание связи между пользователем и преподавателем
+
+    Args:
+        response (CreateUserType): [create user -> teacher]
+
+    Raises:
+        HTTPException: [400]
+
+    Returns:
+        [message]: [OK(200)]
+    """
     try:
         user, _ = await models.User.aio_get_or_create(chat_id=response.chat_id)
         discipline, _ = await models.Discipline.aio_get_or_create(name=response.type)
@@ -98,6 +121,17 @@ async def create_teacher(response: CreateUserType):
 
 @app.post('/create/student/')
 async def create_student(response: CreateUserType):
+    """Создание связи между пользователем и студентом
+
+    Args:
+        response (CreateUserType): [create user -> student]
+
+    Raises:
+        HTTPException: [400]
+
+    Returns:
+        [message]: [OK(200)]
+    """
     try:
         user, _ = await models.User.aio_get_or_create(chat_id=response.chat_id)
         group, _ = await models.Group.aio_get_or_create(name=response.type)
@@ -202,7 +236,15 @@ async def get_dict_by_schedule(
 
 @app.get('/schedule/{schedule_id}/')
 async def get_schedule(schedule_id: int, group_id: int = None):
-    """Получить расписание"""
+    """Получение расписания по дисциплине
+
+    Args:
+        schedule_id (int): [номер дисциплины]
+        group_id (int, optional): [группа]. Defaults to None.
+
+    Returns:
+        [JSON]: [shedule,group]
+    """
     schedule = await models.Schedule.aio_get(id=schedule_id)
     group = await models.Group.aio_get(id=group_id) if group_id else None
     return await get_dict_by_schedule(
@@ -213,8 +255,16 @@ async def get_schedule(schedule_id: int, group_id: int = None):
 
 @app.get("/schedule/teacher/{teacher_id}")
 async def get_teacher_schedule(teacher_id: int):
-    """
-    Получить расписание преподавателя по его ID.
+    """Получение преподавателя по его айди
+
+    Args:
+        teacher_id (int): [teacher id or user id]
+
+    Raises:
+        HTTPException: [404]
+
+    Returns:
+        [response]: [date,group_name,pair,discipline_name,auditory_name]
     """
     # Получаем дисциплины преподавателя
     disciplines = await Discipline.aio_filter(teacher__user_id=teacher_id)
@@ -243,6 +293,14 @@ async def get_teacher_schedule(teacher_id: int):
 
 @app.get('/date/{id}')
 async def get_date_doc(id: int):
+    """По айди возвращает дату
+
+    Args:
+        id (int): [date]
+
+    Returns:
+        [date]: [date]
+    """
     date = await models.Schedule.aio_get(id = id)
     return {'date': date.date}
 

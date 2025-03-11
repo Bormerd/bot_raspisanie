@@ -84,6 +84,7 @@ async def teacher_schedule(message: Message):
             await message.answer(message_text, parse_mode="HTML")
 
 async def add_disciplines (message: Message, state: FSMContext):
+    """Функция добавления дисциплин преподавателю."""
     keyboard = await tea.discipline()
     if keyboard:
         await message.answer(f"Выберите свою дисциплину", reply_markup=keyboard)
