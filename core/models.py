@@ -5,11 +5,11 @@ import peewee
 from peewee_async import PooledMySQLDatabase, AioModel
 
 
-DB_NAME = "schedule"
+DB_NAME = "raspisane"
 DB_CONFIG = {
     "user": "root",
-    "password": "123456",
-    "host": "localhost",
+    "password": "3010",
+    "host": "127.0.0.1",
     "port": 3306,
 }
 # Если БД нет, запустить модуль
