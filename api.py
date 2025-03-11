@@ -51,18 +51,23 @@ app = FastAPI(lifespan=lifespan)
 async def get_user_role(chat_id: int):
     user = await models.User.aio_get_or_none(chat_id=chat_id)
     student = await models.Student.aio_get_or_none(user_id = user)
-    teacher = await models.Teacher.aio_get_or_none(user_id = user)
     if student:
         return {
             'chat_id': user.chat_id,
             'type': 'student',
             'id': student.group_id
         }
+    teacher = await models.Teacher.aio_get_or_none(user_id = user)
     if teacher:
+        disciplines = models.Teacher.select().where(models.Teacher.user_id == user.id).prefetch(models.Discipline)
+        discipline_list = []
+        for teacher_discipline in disciplines:
+            discipline_list.append(teacher_discipline.discipline_id.id)
+
         return {
             'chat_id': user.chat_id,
             'type': 'teacher',
-            'id': teacher.discipline_id
+            'id': discipline_list
         }
     
 

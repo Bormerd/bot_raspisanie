@@ -13,7 +13,7 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
     """
     response = await service.get_request(f'/user/{message.chat.id}/')
     
-    if response != 'null':
+    if response == 'null':
         await service.post_request(f'/create/{message.chat.id}/')
         await message.answer("Выберите роль", reply_markup=reg.Keyboard_register)
     else:

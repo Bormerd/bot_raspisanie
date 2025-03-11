@@ -10,4 +10,5 @@ class User(StatesGroup):
     set_role_user = State()
     set_teacher = State ()
     set_student = State ()
+    add_discipline = State()
     

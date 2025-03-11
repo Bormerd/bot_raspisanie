@@ -5,7 +5,7 @@ from aiogram import Bot
 from aiogram.types import Message,CallbackQuery,BotCommand
 from aiogram.fsm.context import FSMContext
 import bot.keys_board.teacher as tea
-from bot.state.state import User
+import bot.state.state as stat
 from RequestsUrl import service
 from collections import defaultdict
 
@@ -14,10 +14,10 @@ async def menu_teacher(message:Message,state:FSMContext,bot: Bot) -> None:
     Функция для вывода меню
     """
     await state.clear()
-    await message.answer("Меню возможностей",reply_markup=tea.Teach_menu)
+    await message.answer("Меню возможностей",reply_markup=tea.Teacher_menu)
     from main import bot
     commands = [
-        BotCommand(command="/add_discipline", description="добавить достижение"),
+        BotCommand(command="/add_discipline", description="добавить дисциплину"),
         BotCommand(command="/delete_discipline", description="удалить дисциплину"),
         BotCommand(command="/schedule",description="Расписанеи"),
         BotCommand(command="/menu", description="Меню")
@@ -29,8 +29,6 @@ async def discipline_schedule (message: Message):
     # написать запрос для вывода расписания ОДНОЙ дисциплины
     pass
 
-async def get_schedule (message: Message):
-    """Отправка расписания"""
 async def teacher_schedule(message: Message):
     """Отправка расписания для преподавателя"""
     teacher_id = message.chat.id
@@ -45,14 +43,12 @@ async def teacher_schedule(message: Message):
 
     # Получаем дисциплины преподавателя
     teacher_response = await service.get_request(f'/user/{teacher_id}/')
-    teacher_disciplines = teacher_response.get('id')
-    discipline_ids = [teacher_disciplines['__data__']['id']]
+    teacher_disciplines = teacher_response.get('id', [])
+    discipline_ids = teacher_disciplines 
     if not discipline_ids:
         await message.answer("У вас нет назначенных дисциплин.")
         return
 
-    # Собираем ID дисциплин преподавателя
-    # # Проходим по всем расписаниям
     for schedule in schedules:
         schedule_id = schedule.get("id")
 
@@ -87,5 +83,19 @@ async def teacher_schedule(message: Message):
             # Отправляем сообщение
             await message.answer(message_text, parse_mode="HTML")
 
-async def add_disciplines (message: Message):
-    await message.answer("Выбирите дисциплину")
+async def add_disciplines (message: Message, state: FSMContext):
+    keyboard = await tea.discipline()
+    if keyboard:
+        await message.answer(f"Выберите свою дисциплину", reply_markup=keyboard)
+        await state.set_state(stat.User.add_discipline)
+    else:
+        await message.answer("На данный момент такой дисциплины нет.")
+
+async def add_discipline_user(callbak: CallbackQuery):
+    response = callbak.data.split('_')
+    if response[0] == 'disciplines':
+        await service.post_request('/create/teacher/', json={
+            'chat_id': callbak.message.chat.id,
+            'type': response[1]
+        })
+    await callbak.message.answer("Дисциплина добавлена")
