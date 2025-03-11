@@ -17,3 +17,4 @@ def function(dp:Dispatcher):
     dp.message.register(reg.command_start_handler, CommandStart())
     dp.message.register(stu.menu_student, F.text == '/menu', cheak.CheakStudent())
     dp.message.register(stu.discipline_schedule, F.text == '/schedule', cheak.CheakStudent())
+    dp.message.register(tea.teacher_schedule, F.text == '/teacher_schedule', cheak.CheakTeacher())

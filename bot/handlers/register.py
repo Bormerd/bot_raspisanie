@@ -6,6 +6,7 @@ import bot.keys_board.register as reg
 import aiohttp  # Используем aiohttp для асинхронных запросов
 from RequestsUrl import service
 from aiohttp import ClientResponseError
+
 async def command_start_handler(message: Message, state: FSMContext) -> None:
     """Обработчик команды /start
     Выбор типа пользователя
@@ -39,9 +40,7 @@ async def teacher_register(callbak: CallbackQuery, state: FSMContext):
 async def register_ending(callbak: CallbackQuery, state: FSMContext):
     """Обработчик завершения регистраций"""
     response = callbak.data.split('_')
-    print (response)
-    print (callbak.message.chat.id)
-    if response[0] == 'discipline':
+    if response[0] == 'disciplines':
         await service.post_request('/create/teacher/', json={
             'chat_id': callbak.message.chat.id,
             'type': response[1]

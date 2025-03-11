@@ -51,7 +51,7 @@ app = FastAPI(lifespan=lifespan)
 async def get_user_role(chat_id: int):
     user = await models.User.aio_get_or_none(chat_id=chat_id)
     student = await models.Student.aio_get_or_none(user_id = user)
-    teacher = await models.Student.aio_get_or_none(user_id = user)
+    teacher = await models.Teacher.aio_get_or_none(user_id = user)
     if student:
         return {
             'chat_id': user.chat_id,
@@ -63,7 +63,8 @@ async def get_user_role(chat_id: int):
             'chat_id': user.chat_id,
             'type': 'teacher',
             'id': teacher.discipline_id
-    }
+        }
+    
 
 @app.post('/create/{chat_id}')
 async def create_user(chat_id: int):
@@ -203,6 +204,37 @@ async def get_schedule(schedule_id: int, group_id: int = None):
         schedule=schedule,
         group=group
     )
+
+
+@app.get("/schedule/teacher/{teacher_id}")
+async def get_teacher_schedule(teacher_id: int):
+    """
+    Получить расписание преподавателя по его ID.
+    """
+    # Получаем дисциплины преподавателя
+    disciplines = await Discipline.aio_filter(teacher__user_id=teacher_id)
+    if not disciplines:
+        raise HTTPException(status_code=404, detail="Преподаватель не найден или у него нет дисциплин")
+
+    # Получаем все занятия по этим дисциплинам
+    lessons = await Lesson.aio_filter(discipline__in=[d.id for d in disciplines], arhiv=False)
+
+    # Формируем ответ вручную
+    response = []
+    for lesson in lessons:
+        schedule = await Schedule.aio_get(id=lesson.schedule_id)
+        group = await Group.aio_get(id=lesson.group_id)
+        auditory = await Auditory.aio_get(id=lesson.auditory_id)
+        response.append({
+            "date": schedule.date,
+            "group_name": group.name,
+            "pair": lesson.pair,
+            "discipline_name": lesson.discipline.name,
+            "auditory_name": auditory.name
+        })
+
+    return response
+
 
 @app.get('/date/{id}')
 async def get_date_doc(id: int):
