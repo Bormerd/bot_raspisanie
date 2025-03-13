@@ -1,5 +1,5 @@
 """Модуль обработки команд"""
-# может не хватать библеотек
+# может не хватать библиотек
 from aiogram.filters import CommandStart
 from aiogram import Dispatcher, F
 import bot.handlers.register as reg
@@ -22,4 +22,6 @@ def function(dp:Dispatcher):
     dp.message.register(tea.teacher_schedule, F.text == '/schedule', cheak.CheakTeacher())
     dp.message.register(tea.menu_teacher, F.text == '/menu', cheak.CheakTeacher())
     dp.message.register(tea.add_disciplines, (F.text == '/add_discipline') | (F.text == 'добавить дисциплину'), cheak.CheakTeacher())
-
+    dp.message.register(stu.discipline_schedule, F.text.lower() == "расписание", cheak.CheakStudent())
+    dp.message.register(stu.send_bells_photo, F.text.lower() == "звонки", cheak.CheakStudent())
+    dp.message.register(stu.send_bells_photo, F.text == '/rating', cheak.CheakStudent())
