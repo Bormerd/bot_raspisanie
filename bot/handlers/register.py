@@ -39,7 +39,7 @@ async def teacher_register(callbak: CallbackQuery, state: FSMContext):
     if keyboard:
         response = await service.get_request(f'/user/{callbak.message.chat.id}/')
         if response and response['type'] == 'student':
-            await service.delete_request(f'/student/delete/{response['chat_id']}')
+            await service.delete_request(f'/student/delete/{callbak.message.chat.id}')
         await callbak.message.answer(f"Выберите свою дисциплину", reply_markup=keyboard)
         await state.set_state(stat.User.reg_end)
 
