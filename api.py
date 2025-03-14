@@ -7,7 +7,7 @@ from datetime import datetime as DT
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from typing import Dict, Optional
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from core import models
 from core.models import DB
@@ -17,6 +17,11 @@ from core.parser import google
 # pylint: disable=E1101
 TIME_SHORT_SLEEP = 15 * 60 * 60
 TIME_LONG_SLEEP = 15 * 60 * 60 * 60
+
+class CreateUserType(BaseModel):
+    chat_id: int
+    type: str
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,35 +48,175 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-@app.get('/user/role/{user_id}')
-async def get_user_role(user_id: str):
-    user = await models.UserDisciplines.aio_get_or_none(user_id=user_id)
-    if user:
-        return {'message': 'OK'}
+@app.get('/user/{chat_id}/')
+async def get_user_role(chat_id: int):
+    """получение аккаунта пользователя
 
-@app.post('/create/')
-async def create_user(
-    user_id: str,
-    category_type: str,
-    category_name: Optional[str]
-) -> dict:
+    Args:
+        chat_id (int): [chat_id user]
+
+    Returns:
+        [type]: [user info]
     """
-    Создать пользователя и вернуть информацию о нём.
+    user = await models.User.aio_get_or_none(chat_id=chat_id)
+    student = await models.Student.aio_get_or_none(user_id = user)
+    if student:
+        return {
+            'chat_id': user.chat_id,
+            'type': 'student',
+            'id': student.group_id
+        }
+    teacher = await models.Teacher.aio_get_or_none(user_id = user)
+    if teacher:
+        disciplines = models.Teacher.select().where(models.Teacher.user_id == user.id).prefetch(models.Discipline)
+        discipline_list = []
+        for teacher_discipline in disciplines:
+            discipline_list.append(teacher_discipline.discipline_id.id)
 
-    :param user_id: Идентификатор пользователя.
-    :param category_type: Тип категории ('group' или 'discipline').
-    :param category_name: Название группы или дисциплины (опционально).
-    :return: Словарь с информацией о созданном пользователе.
+        return {
+            'chat_id': user.chat_id,
+            'type': 'teacher',
+            'id': discipline_list
+        }
+    
+
+@app.post('/create/{chat_id}')
+async def create_user(chat_id: int):
+    """Создание аккаунта пользователя
+
+    Args:
+        chat_id (int): [Chat id user]
+
+    Returns:
+        [message]: [OK (200)]
     """
 
     # Создаём пользователя
-    user = await DB.aio_execute(
-        models.Users,
-        user_id=user_id,
-        category_type=category_type,
-        category_name=category_name
+    await models.User.aio_get_or_create(
+        chat_id=chat_id,
     )
+    return {'message': 'OK'}
 
+
+@app.post('/create/teacher/')
+async def create_teacher(response: CreateUserType):
+    """Создание связи между пользователем и преподавателем
+
+    Args:
+        response (CreateUserType): [create user -> teacher]
+
+    Raises:
+        HTTPException: [400]
+
+    Returns:
+        [message]: [OK(200)]
+    """
+    try:
+        user, _ = await models.User.aio_get_or_create(chat_id=response.chat_id)
+        discipline, _ = await models.Discipline.aio_get_or_create(name=response.type)
+        await models.Teacher.aio_get_or_create(user_id=user, discipline_id=discipline)
+        return {'message': 'OK'}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post('/create/student/')
+async def create_student(response: CreateUserType):
+    """Создание связи между пользователем и студентом
+
+    Args:
+        response (CreateUserType): [create user -> student]
+
+    Raises:
+        HTTPException: [400]
+
+    Returns:
+        [message]: [OK(200)]
+    """
+    try:
+        user, _ = await models.User.aio_get_or_create(chat_id=response.chat_id)
+        group, _ = await models.Group.aio_get_or_create(name=response.type)
+        await models.Student.aio_get_or_create(user_id=user, group_id=group)
+        return {'message': 'OK'}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.put('/updates/group/')
+async def update_student(response: CreateUserType):
+    """
+    Обновить группу студента.
+
+    Args:
+        student_id (int): ID студента.
+        group_id (int): ID новой группы.
+
+    Raises:
+        HTTPException: 404, если студент не найден.
+        HTTPException: 404, если группа не найдена.
+        HTTPException: 400, если произошла ошибка при обновлении.
+
+    Returns:
+        dict: OK.
+    """
+    try:
+        user = await models.User.aio_get_or_none(chat_id=response.chat_id)
+        student = await models.Student.aio_get_or_none(user_id = user)
+        if not student:
+            raise HTTPException(status_code=404, detail="Студент не найден")
+        
+        group = await models.Group.aio_get_or_none(name=response.type)
+        if not group:
+            raise HTTPException(status_code=404, detail="Группа не найдена")
+        student.group_id = group.id
+        await student.aio_save()
+
+        return {'message': 'OK'}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete('/teacher/delete/{teacher_id}')
+async def delete_teacher(teacher_id: int):
+    """Удаление аккаунта преподавателя
+
+    Args:
+        teacher_id (int): [teacher -> user]
+
+    Raises:
+        HTTPException: [400]
+
+    Returns:
+        [message]: [OK(200)]
+    """
+    user = await models.User.aio_get_or_none(chat_id=teacher_id)
+    teacher = await models.Teacher.aio_get_or_none(user_id=user)
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Связь не найдена")
+    while True:
+        teacher = await models.Teacher.aio_get_or_none(user_id=user)
+        if not teacher:
+            break
+        await teacher.aio_delete_instance()
+    return {'message': 'OK'}
+
+@app.delete('/student/delete/{student_id}')
+async def delete_student(student_id: int):
+    """Удаление аккаунта студента
+
+    Args:
+        student_id (int): [student -> user]
+
+    Raises:
+        HTTPException: [400]
+
+    Returns:
+        [message]: [OK(200)]
+    """
+    user = await models.User.aio_get_or_none(chat_id=student_id)
+    student = await models.Student.aio_get_or_none(user_id=user)
+    if not student:
+        raise HTTPException(status_code=404, detail="Связь не найдена")
+    await student.aio_delete_instance()
+    return {'message': 'OK'}
 
 @app.get('/updates/')
 async def get_updates(
@@ -169,7 +314,15 @@ async def get_dict_by_schedule(
 
 @app.get('/schedule/{schedule_id}/')
 async def get_schedule(schedule_id: int, group_id: int = None):
-    """Получить расписание"""
+    """Получение расписания по дисциплине
+
+    Args:
+        schedule_id (int): [номер дисциплины]
+        group_id (int, optional): [группа]. Defaults to None.
+
+    Returns:
+        [JSON]: [shedule,group]
+    """
     schedule = await models.Schedule.aio_get(id=schedule_id)
     group = await models.Group.aio_get(id=group_id) if group_id else None
     return await get_dict_by_schedule(
@@ -177,6 +330,57 @@ async def get_schedule(schedule_id: int, group_id: int = None):
         group=group
     )
 
+
+@app.get("/schedule/teacher/{teacher_id}")
+async def get_teacher_schedule(teacher_id: int):
+    """Получение преподавателя по его айди
+
+    Args:
+        teacher_id (int): [teacher id or user id]
+
+    Raises:
+        HTTPException: [404]
+
+    Returns:
+        [response]: [date,group_name,pair,discipline_name,auditory_name]
+    """
+    # Получаем дисциплины преподавателя
+    disciplines = await Discipline.aio_filter(teacher__user_id=teacher_id)
+    if not disciplines:
+        raise HTTPException(status_code=404, detail="Преподаватель не найден или у него нет дисциплин")
+
+    # Получаем все занятия по этим дисциплинам
+    lessons = await Lesson.aio_filter(discipline__in=[d.id for d in disciplines], arhiv=False)
+
+    # Формируем ответ вручную
+    response = []
+    for lesson in lessons:
+        schedule = await Schedule.aio_get(id=lesson.schedule_id)
+        group = await Group.aio_get(id=lesson.group_id)
+        auditory = await Auditory.aio_get(id=lesson.auditory_id)
+        response.append({
+            "date": schedule.date,
+            "group_name": group.name,
+            "pair": lesson.pair,
+            "discipline_name": lesson.discipline.name,
+            "auditory_name": auditory.name
+        })
+
+    return response
+
+
+@app.get('/date/{id}')
+async def get_date_doc(id: int):
+    """По айди возвращает дату
+
+    Args:
+        id (int): [date]
+
+    Returns:
+        [date]: [date]
+    """
+    date = await models.Schedule.aio_get(id = id)
+    return {'date': date.date}
 
 @app.get('/groups/')
 async def get_groups():

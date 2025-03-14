@@ -13,12 +13,12 @@ Keyboard_register = InlineKeyboardMarkup(inline_keyboard=[
 
 async def group():
     """Функция для вывода кнопок с группами"""
-    keyboard= InlineKeyboardBuilder()  # Устанавливаем ширину строки в 4 кнопки
+    keyboard= InlineKeyboardBuilder()
     data = await service.get_request('/groups/')
     groups = data.get("entities", [])
     for group in groups:
-        group_name = group.get("name")  # Получаем имя группы
-        if group_name:  # Проверяем, что имя группы существует
+        group_name = group.get("name")
+        if group_name: 
             keyboard.add(
                 InlineKeyboardButton(
                     text=group_name,
@@ -30,20 +30,17 @@ async def group():
 
 async def discipline():
     """Функция для вывода кнопок с группами"""
-    keyboard = InlineKeyboardMarkup(row_width=4)
-    i = False
-    disciplines = await service.get_request('/groups/')
-    for discipline_name in disciplines:
-        keyboard.add(
-            InlineKeyboardButton(
-                text=discipline_name["discipline_name"],
-                callback_data=f'discipline_{discipline_name["discipline_name"]}'
+    keyboard= InlineKeyboardBuilder()
+    data = await service.get_request('/disciplines/')
+    disciplines = data.get("entities", [])
+    for disciplines in disciplines:
+        disciplines_name = disciplines.get("name")
+        if disciplines_name:
+            keyboard.add(
+                InlineKeyboardButton(
+                    text=disciplines_name,
+                    callback_data=f'disciplines_{disciplines_name}'
                 )
             )
-        i = True
-    else:
-        # Обработка ошибки, если API не доступен
-        print("Ошибка при получении дисциплин")
-    if i:
-        return keyboar
-    return i
+    keyboard.adjust(4)
+    return keyboard.as_markup()
