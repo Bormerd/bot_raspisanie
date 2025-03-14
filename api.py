@@ -50,9 +50,6 @@ app = FastAPI(lifespan=lifespan)
 async def get_user_role(chat_id: int):
     """Получение аккаунта пользователя"""
     user = await models.User.aio_get_or_none(chat_id=chat_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="Пользователь не найден")
-
     student = await models.Student.aio_get_or_none(user_id=user)
     if student:
         return {
