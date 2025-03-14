@@ -1,5 +1,4 @@
 """Модуль обработки команд"""
-# может не хватать библиотек
 from aiogram.filters import CommandStart
 from aiogram import Dispatcher, F
 import bot.handlers.register as reg
@@ -10,9 +9,10 @@ import bot.handlers.user_teacher as tea
 import bot.filters.cheak as cheak
 from aiogram.filters import Command
 
-def function(dp:Dispatcher):
-    """"Регистрация команд"""
+def function(dp: Dispatcher):
+    """Регистрация команд"""
     dp.callback_query.register(tea.add_discipline_user, stat.User.add_discipline)
+
     dp.callback_query.register(reg.register_ending,stat.User.reg_end)
     dp.callback_query.register(tea.delete_discipline_user,stat.User.delete_discipline)
     dp.callback_query.register(reg.teacher_register,F.data == "Преподаватель")
@@ -27,3 +27,4 @@ def function(dp:Dispatcher):
     dp.message.register(stu.discipline_schedule, F.text.lower() == "расписание", cheak.CheakStudent())
     dp.message.register(stu.send_bells_photo, F.text.lower() == "звонки", cheak.CheakStudent())
     dp.message.register(stu.send_bells_photo, F.text == '/rating', cheak.CheakStudent())
+    dp.message.register(stu.handle_text_message, cheak.CheakStudent())
