@@ -13,7 +13,7 @@ Teacher_menu = ReplyKeyboardMarkup(keyboard = [
     ]])
 
 async def discipline():
-    """Функция для вывода кнопок с группами"""
+    """Функция для вывода кнопок дисциплин"""
     keyboard= InlineKeyboardBuilder()
     data = await service.get_request('/disciplines/')
     disciplines = data.get("entities", [])
@@ -28,3 +28,25 @@ async def discipline():
             )
     keyboard.adjust(4)
     return keyboard.as_markup()
+
+async def user_discipline(chat_id):
+    """Функция для вывода кнопок дисциплин пользователя"""
+    keyboard = InlineKeyboardBuilder()
+    user_response = await service.get_request(f'/user/{chat_id}/')
+    disciplines_response = await service.get_request(f'/disciplines/')
+    disciplines = disciplines_response.get("entities", [])
+    teacher_discipline_ids = user_response.get("id", [])
+    if not teacher_discipline_ids:
+        return None 
+    for discipline in disciplines:
+        if discipline.get("id") in teacher_discipline_ids:
+            discipline_name = discipline.get("name")
+            if discipline_name:
+                keyboard.add(
+                    InlineKeyboardButton(
+                        text=discipline_name,
+                        callback_data=f'discipline_{discipline.get("id")}'
+                        )
+                    )
+    keyboard.adjust(4)
+    return keyboard.as_markup(),len(teacher_discipline_ids)

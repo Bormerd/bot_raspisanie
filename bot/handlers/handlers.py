@@ -12,13 +12,19 @@ from aiogram.filters import Command
 def function(dp: Dispatcher):
     """Регистрация команд"""
     dp.callback_query.register(tea.add_discipline_user, stat.User.add_discipline)
-    dp.callback_query.register(reg.register_ending, stat.User.reg_end)
-    dp.callback_query.register(reg.teacher_register, F.data == "Преподаватель")
-    dp.callback_query.register(reg.student_register, F.data == "Студент")
+
+    dp.callback_query.register(reg.register_ending,stat.User.reg_end)
+    dp.callback_query.register(tea.delete_discipline_user,stat.User.delete_discipline)
+    dp.callback_query.register(reg.teacher_register,F.data == "Преподаватель")
+    dp.callback_query.register(reg.student_register,F.data == "Студент")
     dp.message.register(reg.command_start_handler, CommandStart())
     dp.message.register(stu.menu_student, F.text == '/menu', cheak.CheakStudent())
     dp.message.register(stu.discipline_schedule, F.text == '/schedule', cheak.CheakStudent())
     dp.message.register(tea.teacher_schedule, F.text == '/schedule', cheak.CheakTeacher())
     dp.message.register(tea.menu_teacher, F.text == '/menu', cheak.CheakTeacher())
     dp.message.register(tea.add_disciplines, (F.text == '/add_discipline') | (F.text == 'добавить дисциплину'), cheak.CheakTeacher())
-    dp.message.register(stu.handle_text_message, cheak.CheakStudent())  # Обработка текстовых сообщений
+    dp.message.register(tea.delete_discipline, (F.text == '/delete_discipline') |(F.text == 'удалить дисциплину'), cheak.CheakTeacher())
+    dp.message.register(stu.discipline_schedule, F.text.lower() == "расписание", cheak.CheakStudent())
+    dp.message.register(stu.send_bells_photo, F.text.lower() == "звонки", cheak.CheakStudent())
+    dp.message.register(stu.send_bells_photo, F.text == '/rating', cheak.CheakStudent())
+    dp.message.register(stu.handle_text_message, cheak.CheakStudent())

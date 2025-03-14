@@ -21,6 +21,7 @@ class CreateUserType(BaseModel):
     chat_id: int
     type: str
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Перед запуском и завершением работы сервера"""
@@ -104,6 +105,93 @@ async def create_student(response: CreateUserType):
         return {'message': 'OK'}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@app.put('/updates/group/')
+async def update_student(response: CreateUserType):
+    """
+    Обновить группу студента.
+
+    Args:
+        student_id (int): ID студента.
+        group_id (int): ID новой группы.
+
+    Raises:
+        HTTPException: 404, если студент не найден.
+        HTTPException: 404, если группа не найдена.
+        HTTPException: 400, если произошла ошибка при обновлении.
+
+    Returns:
+        dict: OK.
+    """
+    try:
+        user = await models.User.aio_get_or_none(chat_id=response.chat_id)
+        student = await models.Student.aio_get_or_none(user_id = user)
+        if not student:
+            raise HTTPException(status_code=404, detail="Студент не найден")
+        
+        group = await models.Group.aio_get_or_none(name=response.type)
+        if not group:
+            raise HTTPException(status_code=404, detail="Группа не найдена")
+        student.group_id = group.id
+        await student.aio_save()
+
+        return {'message': 'OK'}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+@app.delete('/teachet/discipline/{discipline_id}')
+async def delete_discipline(discipline_id: int):
+    """
+    Удалить дисциплину.
+    """
+    discipline = await models.Teacher.aio_get_or_none(discipline_id=discipline_id)
+    if not discipline:
+        raise HTTPException(status_code=400, detail=str(e))
+    await discipline.aio_delete_instance()
+    return {'message': 'OK'}
+
+@app.delete('/teacher/delete/{teacher_id}')
+async def delete_teacher(teacher_id: int):
+    """Удаление аккаунта преподавателя
+
+    Args:
+        teacher_id (int): [teacher -> user]
+
+    Raises:
+        HTTPException: [400]
+
+    Returns:
+        [message]: [OK(200)]
+    """
+    user = await models.User.aio_get_or_none(chat_id=teacher_id)
+    teacher = await models.Teacher.aio_get_or_none(user_id=user)
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Связь не найдена")
+    while True:
+        teacher = await models.Teacher.aio_get_or_none(user_id=user)
+        if not teacher:
+            break
+        await teacher.aio_delete_instance()
+    return {'message': 'OK'}
+
+@app.delete('/student/delete/{student_id}')
+async def delete_student(student_id: int):
+    """Удаление аккаунта студента
+
+    Args:
+        student_id (int): [student -> user]
+
+    Raises:
+        HTTPException: [400]
+
+    Returns:
+        [message]: [OK(200)]
+    """
+    user = await models.User.aio_get_or_none(chat_id=student_id)
+    student = await models.Student.aio_get_or_none(user_id=user)
+    if not student:
+        raise HTTPException(status_code=404, detail="Связь не найдена")
+    await student.aio_delete_instance()
+    return {'message': 'OK'}
 
 @app.get('/updates/')
 async def get_updates(discipline_id: int = None, group_id: int = None, limit: int = 100):

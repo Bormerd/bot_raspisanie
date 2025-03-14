@@ -9,6 +9,6 @@ class User(StatesGroup):
     discipline=State()
     set_role_user = State()
     set_teacher = State ()
-    set_student = State ()
+    delete_discipline = State ()
     add_discipline = State()
     
