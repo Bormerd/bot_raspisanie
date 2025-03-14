@@ -28,7 +28,7 @@ async def discipline_schedule(message: Message):
     schedules = schedules_response.get("entities", [])
     group_response = await service.get_request(f'/user/{message.chat.id}/')
     group_id = group_response.get("id")
-    group = group_response  # Предполагаем, что group_response — это словарь
+    group = group_response 
     
     if not schedules:
         await message.answer("Нет доступных расписаний.")
@@ -36,7 +36,6 @@ async def discipline_schedule(message: Message):
     
     for schedule in schedules:
         schedule_id = schedule.get("id")
-        # Исправлено: используем двойные фигурные скобки для экранирования
         schedule_details_response = await service.get_request(f'/schedule/{schedule_id}/?group_id={group_id["__data__"]["id"]}')
         schedule_details = schedule_details_response.get("entities", [])
         date = await service.get_request(f'/date/{schedule_id}')

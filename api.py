@@ -173,6 +173,16 @@ async def update_student(response: CreateUserType):
         return {'message': 'OK'}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+@app.delete('/teachet/discipline/{discipline_id}')
+async def delete_discipline(discipline_id: int):
+    """
+    Удалить дисциплину.
+    """
+    discipline = await models.Teacher.aio_get_or_none(discipline_id=discipline_id)
+    if not discipline:
+        raise HTTPException(status_code=400, detail=str(e))
+    await discipline.aio_delete_instance()
+    return {'message': 'OK'}
 
 @app.delete('/teacher/delete/{teacher_id}')
 async def delete_teacher(teacher_id: int):
