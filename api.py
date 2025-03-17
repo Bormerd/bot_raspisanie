@@ -71,10 +71,6 @@ async def get_user_role(chat_id: int):
             'id': discipline_list
         }
 
-    raise HTTPException(status_code=404, detail="Роль пользователя не определена")
-
-
-
 @app.post('/create/{chat_id}')
 async def create_user(chat_id: int):
     """Создание аккаунта пользователя"""
