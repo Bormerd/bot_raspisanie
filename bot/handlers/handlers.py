@@ -1,5 +1,4 @@
 """Модуль обработки команд"""
-# может не хватать библиотек
 from aiogram.filters import CommandStart
 from aiogram import Dispatcher, F
 import bot.handlers.register as reg
@@ -9,9 +8,40 @@ import bot.handlers.user_student as stu
 import bot.handlers.user_teacher as tea
 import bot.filters.cheak as cheak
 from aiogram.filters import Command
+from aiogram.dispatcher.middlewares.base import BaseMiddleware
+from datetime import datetime, timedelta
 
-def function(dp:Dispatcher):
-    """"Регистрация команд"""
+user_last_message = {}
+
+class ThrottlingMiddleware(BaseMiddleware):
+    def __init__(self, limit=2, interval=1):  # 2 сообщения в 5 секунд
+        self.limit = limit
+        self.interval = interval
+        super().__init__()
+
+    async def __call__(self, handler, event, data):
+        user = data.get("event_from_user")
+        if not user:
+            return await handler(event, data)
+
+        current_time = datetime.now()
+
+        # Проверяем, не флудит ли пользователь
+        if user.id in user_last_message:
+            last_time = user_last_message[user.id]
+            time_diff = (current_time - last_time).total_seconds()
+
+            if time_diff < self.interval:
+                await event.answer("⚠️ Слишком быстро! Подождите немного.")
+                return  # Прерываем обработку
+
+        # Обновляем время последнего сообщения
+        user_last_message[user.id] = current_time
+        return await handler(event, data)
+
+def function(dp: Dispatcher):
+    """Регистрация команд"""
+    dp.message.middleware(ThrottlingMiddleware(limit=2, interval=5))
     dp.callback_query.register(tea.add_discipline_user, stat.User.add_discipline)
     dp.callback_query.register(reg.register_ending,stat.User.reg_end)
     dp.callback_query.register(tea.delete_discipline_user,stat.User.delete_discipline)
@@ -27,3 +57,4 @@ def function(dp:Dispatcher):
     dp.message.register(stu.discipline_schedule, F.text.lower() == "расписание", cheak.CheakStudent())
     dp.message.register(stu.send_bells_photo, F.text.lower() == "звонки", cheak.CheakStudent())
     dp.message.register(stu.send_bells_photo, F.text == '/rating', cheak.CheakStudent())
+    dp.message.register(stu.handle_text_message, cheak.CheakStudent())
