@@ -6,10 +6,12 @@ from dotenv import load_dotenv
 from bot.handlers.handlers import function
 import uvicorn
 import api
+from bot_notifier import BotNotifier
 
 load_dotenv(".env")
-bot=os.getenv('bot')
-bot=Bot(token=bot)
+bot = os.getenv('bot')
+bot = Bot(token=bot)
+BotNotifier.set_bot(bot)  # Регистрируем бота для уведомлений
 dp = Dispatcher()
 app = api.app
 
