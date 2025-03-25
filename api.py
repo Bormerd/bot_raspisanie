@@ -11,7 +11,224 @@ from fastapi import FastAPI, HTTPException
 from core import models
 from core.parser import google
 from core.models import DB
+from bot_notifier import BotNotifier
+from core.service import get_request
 
+
+class ScheduleNotifier:
+    @staticmethod
+    async def get_user_info(chat_id: int) -> Dict:
+        """Получаем информацию о пользователе"""
+        user = await models.User.aio_get_or_none(chat_id=chat_id)
+        if not user:
+            return None
+
+        student = await models.Student.aio_get_or_none(user_id=user)
+        if student:
+            return {
+                'chat_id': chat_id,
+                'type': 'student',
+                'id': student.group_id
+            }
+
+        teacher = await models.Teacher.aio_get_or_none(user_id=user)
+        if teacher:
+            disciplines = await models.Teacher.aio_filter(user_id=user)
+            discipline_list = [t.discipline_id.id for t in disciplines]
+            return {
+                'chat_id': chat_id,
+                'type': 'teacher',
+                'id': discipline_list
+            }
+        
+        return None
+
+    @staticmethod
+    async def format_teacher_schedule(schedule_data: List[Dict], schedule_date: Date) -> str:
+        """Форматируем расписание для преподавателя в едином стиле"""
+        message_text = (
+            f"🔔 Обнаружено новое/измененное расписание на {schedule_date}\n\n"
+            f"📅 <b>{schedule_date}:</b>\n\n"
+        )
+        
+        lessons_by_pair = defaultdict(list)
+        for lesson in schedule_data:
+            lessons_by_pair[lesson['pair']].append(lesson)
+        
+        # Сортируем по номеру пары
+        for pair in sorted(lessons_by_pair.keys()):
+            lessons = lessons_by_pair[pair]
+            message_text += f"{pair}️⃣ 📖 <b>{lessons[0]['discipline_name']}</b>\n"
+            
+            for lesson in lessons:
+                message_text += (
+                    f"   👥 Группа: {lesson['group_name']}\n"
+                    f"   🚪 Ауд.: {lesson['auditory_name']}\n"
+                )
+            
+            message_text += "\n"
+        
+        if not lessons_by_pair:
+            message_text += "🎉 <i>На этот день занятий нет!</i>"
+        
+        return message_text
+
+    @staticmethod
+    async def format_student_schedule(schedule_data: List[Dict], schedule_date: Date) -> str:
+        """Форматируем расписание для студента в едином стиле"""
+        message_text = (
+            f"🔔 Обнаружено новое/измененное расписание на {schedule_date}\n\n"
+            f"📅 <b>{schedule_date}:</b>\n\n"
+        )
+        
+        # Сортируем занятия по паре
+        sorted_lessons = sorted(schedule_data, key=lambda x: x['pair'])
+        
+        for lesson in sorted_lessons:
+            message_text += (
+                f"{lesson['pair']}️⃣ 📖 <b>{lesson['discipline_name']}</b>\n"
+                f"   🚪 Ауд.: {lesson['auditory_name']}\n\n"
+            )
+        
+        if not sorted_lessons:
+            message_text += "🎉 <i>На этот день занятий нет!</i>"
+        
+        return message_text
+
+    @staticmethod
+    async def get_full_day_schedule(schedule_date: Date, user_info: Dict) -> str:
+        """Получаем полное расписание на день для пользователя"""
+        if user_info['type'] == 'student':
+            # Для студента - расписание его группы
+            schedule_response = await get_request(
+                f'/schedule/date/{schedule_date}/?group_id={user_info["id"]}'
+            )
+            
+            if not schedule_response or not schedule_response.get('entities'):
+                return None
+                
+            # Подготавливаем данные для форматирования
+            schedule_data = [{
+                'pair': lesson['pair'],
+                'discipline_name': lesson['discipline']['name'],
+                'auditory_name': lesson['auditory']['name']
+            } for lesson in schedule_response['entities']]
+            
+            return await ScheduleNotifier.format_student_schedule(schedule_data, schedule_date)
+            
+        else:
+            # Для преподавателя - расписание по его дисциплинам
+            schedule_response = await get_request(
+                f'/schedule/teacher/{user_info["chat_id"]}/'
+            )
+            
+            if not schedule_response:
+                return None
+                
+            # Фильтруем по дате и преобразуем данные
+            schedule_data = []
+            for item in schedule_response:
+                if item['date'] == str(schedule_date):
+                    schedule_data.append({
+                        'pair': item['pair'],
+                        'discipline_name': item['discipline_name'],
+                        'group_name': item['group_name'],
+                        'auditory_name': item['auditory_name']
+                    })
+            
+            return await ScheduleNotifier.format_teacher_schedule(schedule_data, schedule_date)
+
+    @staticmethod
+    async def send_schedule_update(chat_id: int, schedule_date: Date):
+        """Отправляем обновленное расписание пользователю"""
+        user_info = await ScheduleNotifier.get_user_info(chat_id)
+        if not user_info:
+            return
+
+        schedule_text = await ScheduleNotifier.get_full_day_schedule(schedule_date, user_info)
+        if not schedule_text:
+            schedule_text = (
+                f"🔔 Обнаружено изменение расписания на {schedule_date}\n\n"
+                "🎉 На этот день занятий нет!"
+            )
+        
+        await BotNotifier.send_message(chat_id, schedule_text)
+        
+async def check_schedule_changes(last_check_time):
+    """Проверяем изменения в расписании"""
+    print(f"Ищем изменения после {last_check_time}")
+    
+    changed_schedules = await models.Schedule.aio_filter(
+        update_at__gte=last_check_time
+    ).prefetch(
+        models.Lesson,
+        models.Lesson.group,
+        models.Lesson.discipline,
+        models.Lesson.auditory
+    )
+    
+    print(f"Найдено измененных расписаний: {len(changed_schedules)}")
+    
+    affected_users = set()
+    
+    for schedule in changed_schedules:
+        print(f"Обрабатываем расписание на {schedule.date} (ID: {schedule.id})")
+        
+        for lesson in schedule.lessons:
+            # Студенты группы
+            students = await models.Student.aio_filter(group_id=lesson.group_id)
+            for student in students:
+                user = await student.user_id
+                affected_users.add((user.chat_id, schedule.date))
+                print(f"Добавлен студент {user.chat_id}")
+            
+            # Преподаватели дисциплины
+            teachers = await models.Teacher.aio_filter(discipline_id=lesson.discipline_id)
+            for teacher in teachers:
+                user = await teacher.user_id
+                affected_users.add((user.chat_id, schedule.date))
+                print(f"Добавлен преподаватель {user.chat_id}")
+    
+    print(f"Всего пользователей для уведомления: {len(affected_users)}")
+    return affected_users
+
+async def parsing_schedule():
+    """Парсинг с периодичностью и отправкой уведомлений"""
+    print("Запущен процесс проверки изменений расписания...")
+    last_parsed_time = None
+    
+    while True:
+        try:
+            print("Выполняем парсинг расписания...")
+            await google.run()
+            
+            # Проверяем изменения только если это не первый запуск
+            if last_parsed_time is not None:
+                print(f"Проверяем изменения с {last_parsed_time}...")
+                affected_users = await check_schedule_changes(last_parsed_time)
+                
+                print(f"Найдено {len(affected_users)} пользователей для уведомления")
+                for chat_id, schedule_date in affected_users:
+                    try:
+                        print(f"Отправляем уведомление пользователю {chat_id} для даты {schedule_date}")
+                        await ScheduleNotifier.send_schedule_update(chat_id, schedule_date)
+                        await asyncio.sleep(0.1)  # Задержка между отправками
+                    except Exception as e:
+                        print(f"Ошибка при отправке уведомления {chat_id}: {e}")
+            
+            # Обновляем время последней проверки
+            last_parsed_time = DT.now()
+            print(f"Обновлено время последней проверки: {last_parsed_time}")
+            
+        except Exception as e:
+            print(f"Критическая ошибка в parsing_schedule: {e}")
+        
+        # Ждем перед следующим парсингом
+        now = DT.now().time()
+        sleep_time = TIME_SHORT_SLEEP if 8 <= now.hour < 17 else TIME_LONG_SLEEP
+        print(f"Ожидаем {sleep_time} секунд перед следующей проверкой...")
+        await asyncio.sleep(sleep_time)
+        
 # pylint: disable=E1101
 TIME_SHORT_SLEEP = 15 * 60 * 60
 TIME_LONG_SLEEP = 15 * 60 * 60 * 60
@@ -24,22 +241,22 @@ class CreateUserType(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Перед запуском и завершением работы сервера"""
-
-    async def parsing_schedule():
-        """Парсинг с периодичностью"""
-        while True:
-            await google.run()
-            now = DT.now().time()
-            await asyncio.sleep(
-                TIME_SHORT_SLEEP
-                if now.hour >= 8 and now.hour < 17
-                else TIME_LONG_SLEEP
-            )
-    task = parsing_schedule()
-    asyncio.create_task(task)
-
+    task = asyncio.create_task(parsing_schedule())
+    
+    def handle_exception(loop, context):
+        print(f"Исключение в event loop: {context}")
+    
+    loop = asyncio.get_event_loop()
+    loop.set_exception_handler(handle_exception)
+    
     yield
-    task.close()
+    
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        print("Задача проверки расписания корректно завершена")
+    
     if not DB.is_closed():
         DB.close()
 
@@ -59,6 +276,9 @@ async def get_user_role(chat_id: int):
     """
     user = await models.User.aio_get_or_none(chat_id=chat_id)
     student = await models.Student.aio_get_or_none(user_id = user)
+    """Получение аккаунта пользователя"""
+    user = await models.User.aio_get_or_none(chat_id=chat_id)
+    student = await models.Student.aio_get_or_none(user_id=user)
     if student:
         return {
             'chat_id': user.chat_id,
@@ -94,6 +314,11 @@ async def create_user(chat_id: int):
     await models.User.aio_get_or_create(
         chat_id=chat_id,
     )
+        
+@app.post('/create/{chat_id}')
+async def create_user(chat_id: int):
+    """Создание аккаунта пользователя"""
+    await models.User.aio_get_or_create(chat_id=chat_id)
     return {'message': 'OK'}
 
 
@@ -457,3 +682,81 @@ async def get_discipline_by_id(
             ]
         },
     }
+    
+@app.get('/schedules/')
+async def get_schedules(date: Date = None):
+    """Получить список расписаний. Если date - не указан,
+ то верент расписание от текущей даты и позже"""
+    if date:
+        schedules = await DB.aio_execute(
+            models.Schedule
+            .filter(
+                date=date
+            )
+            .order_by(
+                models.Schedule.date.asc(),
+                models.Schedule.update_at.asc(),
+            )
+        )
+    else:
+        schedules = await DB.aio_execute(
+            models.Schedule.select().where(
+                models.Schedule.date >= Date.today()
+            )
+            .order_by(
+                models.Schedule.date.asc(),
+                models.Schedule.update_at.asc(),
+            )
+        )
+
+    return {
+        'count': len(schedules),
+        'entities': [schedule.to_dict() for schedule in schedules]
+    }
+
+
+async def get_dict_by_schedule(
+        schedule: models.Schedule,
+        group: models.Group = None):
+    """Получить полное расписание"""
+
+    lessons: Iterable[models.Lesson] = await DB.aio_execute(schedule.lessons)
+
+    result = {
+        'count': 0,
+        'entities': [],
+    }
+
+    for lesson in lessons:
+        if group and lesson.group != group:
+            continue
+
+        row = {
+            'group': lesson.group.to_dict(),
+            'pair': lesson.pair,
+            'discipline': lesson.discipline.to_dict(),
+            'auditory': lesson.auditory.to_dict(),
+        }
+        result['entities'].append(row)
+
+    result['count'] = len(result['entities'])
+    return result
+
+
+@app.get('/schedule/{schedule_id}/')
+async def get_schedule(schedule_id: int, group_id: int = None):
+    """Получение расписания по дисциплине
+
+    Args:
+        schedule_id (int): [номер дисциплины]
+        group_id (int, optional): [группа]. Defaults to None.
+
+    Returns:
+        [JSON]: [shedule,group]
+    """
+    schedule = await models.Schedule.aio_get(id=schedule_id)
+    group = await models.Group.aio_get(id=group_id) if group_id else None
+    return await get_dict_by_schedule(
+        schedule=schedule,
+        group=group
+    )
