@@ -18,4 +18,4 @@ class BotNotifier:
                     parse_mode="HTML"
                 )
             except Exception as e:
-                print(f"Ошибка при отправке уведомления {chat_id}: {e}")
+                print(f"Ошибка при отправке уведомления {chat_id}: {e}") #q

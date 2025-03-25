@@ -53,7 +53,6 @@ class ScheduleNotifier:
             f"📅 <b>{schedule_date}:</b>\n\n"
         )
         
-        # Группируем занятия по парам
         lessons_by_pair = defaultdict(list)
         for lesson in schedule_data:
             lessons_by_pair[lesson['pair']].append(lesson)
@@ -289,11 +288,7 @@ async def get_user_role(chat_id: int):
             'type': 'teacher',
             'id': discipline_list
         }
-
-    
-
-
-
+        
 @app.post('/create/{chat_id}')
 async def create_user(chat_id: int):
     """Создание аккаунта пользователя"""

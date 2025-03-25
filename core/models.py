@@ -5,10 +5,10 @@ import peewee
 from peewee_async import PooledMySQLDatabase, AioModel
 
 
-DB_NAME = "schedule"
+DB_NAME = "rasp"
 DB_CONFIG = {
     "user": "root",
-    "password": "123456",
+    "password": "3010",
     "host": "localhost",
     "port": 3306,
 }

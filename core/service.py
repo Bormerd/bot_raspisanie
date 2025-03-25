@@ -10,4 +10,4 @@ async def get_request(url: str) -> Optional[Dict[str, Any]]:
             return response.json()
         except (httpx.HTTPError, ValueError) as e:
             print(f"Ошибка при выполнении запроса {url}: {e}")
-            return None
+            return None #t

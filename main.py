@@ -11,7 +11,7 @@ from bot_notifier import BotNotifier
 load_dotenv(".env")
 bot = os.getenv('bot')
 bot = Bot(token=bot)
-BotNotifier.set_bot(bot)  # Регистрируем бота для уведомлений
+BotNotifier.set_bot(bot)  
 dp = Dispatcher()
 app = api.app
 
