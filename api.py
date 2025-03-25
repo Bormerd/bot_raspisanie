@@ -8,11 +8,9 @@ from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from typing import Dict, Optional
 from fastapi import FastAPI, HTTPException
-
 from core import models
-from core.models import DB
 from core.parser import google
-
+from core.models import DB
 
 # pylint: disable=E1101
 TIME_SHORT_SLEEP = 15 * 60 * 60
@@ -47,6 +45,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
 
 @app.get('/user/{chat_id}/')
 async def get_user_role(chat_id: int):
