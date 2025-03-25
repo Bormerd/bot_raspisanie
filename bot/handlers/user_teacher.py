@@ -20,80 +20,9 @@ async def menu_teacher(message:Message,state:FSMContext,bot: Bot) -> None:
         BotCommand(command="/add_discipline", description="добавить дисциплину"),
         BotCommand(command="/delete_discipline", description="удалить дисциплину"),
         BotCommand(command="/schedule",description="Расписанеи"),
+        BotCommand(command="/menu", description="Меню")
     ]
     await bot.set_my_commands(commands)
-
-async def sending_update(message: Message):
-    """Отправляет обновления расписания преподавателю по его дисциплинам.
-    Проверяет наличие новой или измененной информации о расписании и отправляет
-    соответствующие обновления преподавателю.
-
-    Args:
-        message (Message): Объект сообщения, который запустил эту функцию.
-    """
-    # Предположим, что ID преподавателя передается в сообщении
-    service.post_request("/check-updates/")
-    data = await response.json()
-    if data.get("message") == "Изменения обнаружены.":
-        teacher_id = message.from_user.id  # ID пользователя в Telegram
-
-        # Получаем дисциплины преподавателя
-        teacher_response = await service.get_request(f'/user/{teacher_id}/')
-        teacher_disciplines = teacher_response.get('disciplines', [])  # Предполагаем, что ключ 'disciplines' содержит список дисциплин
-        discipline_ids = [d['id'] for d in teacher_disciplines]  # Извлекаем ID дисциплин
-
-        if not discipline_ids:
-            await message.answer("У вас нет назначенных дисциплин.")
-            return
-
-        # Получаем расписание для дисциплин преподавателя
-        schedules = []
-        for discipline_id in discipline_ids:
-            schedules_response = await service.get_request(f'/updates/?discipline_id={discipline_id}')
-            schedule = schedules_response.get("entities", [])
-            schedules.extend(schedule)  # Используем extend для добавления элементов списка
-
-        # Группируем занятия по дате
-        lessons_by_date = defaultdict(list)
-        for schedule in schedules:
-            schedule_id = schedule.get("id")
-
-            # Получаем детали расписания
-            schedule_details_response = await service.get_request(f'/schedule/{schedule_id}/')
-            schedule_details = schedule_details_response.get("entities", [])
-
-            for lesson in schedule_details:
-                lesson_date = lesson.get("date")
-                lessons_by_date[lesson_date].append(lesson)
-
-        # Формируем сообщение с изменениями
-        update_message = format_teacher_update_message(lessons_by_date)
-
-        # Отправляем сообщение преподавателю
-        if update_message:
-            await message.answer(update_message)
-        else:
-            await message.answer("Нет новых изменений в расписании.")
-    await asyncio.sleep(
-                TIME_LONG_SLEEP
-                if now.hour >= 8 and now.hour < 17
-                else TIME_LONG_SLEEP
-            )
-
-def format_teacher_update_message(lessons_by_date: defaultdict) -> str:
-    """Форматирует сообщение с обновлениями для преподавателя."""
-    if not lessons_by_date:
-        return ""
-
-    message = "Обновления расписания:\n"
-    for date, lessons in sorted(lessons_by_date.items()):
-        message += f"\n📅 Дата: {date}\n"
-        for lesson in lessons:
-            if lesson.get('old_lesson') is None:
-                message += f"✅ Добавлено новое занятие: {lesson['title']} (Группа: {lesson['group_id']})\n"
-            else:
-                message += f"🔄 Изменено занятие: {lesson['title']} (Группа: {lesson['group_id']})\n"
-    return message
 
 async def teacher_schedule(message: Message):
     """Отправка расписания для преподавателя"""
