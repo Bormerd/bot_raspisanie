@@ -9,13 +9,11 @@ from pydantic import BaseModel
 from typing import Dict, Optional
 from fastapi import FastAPI, HTTPException
 from collections import defaultdict
-
 from core import models
 from core.models import DB, Discipline, Lesson, Schedule, Group, Auditory
 from core.parser import google
 from bot_notifier import BotNotifier
 from core.service import get_request
-
 
 class ScheduleNotifier:
     @staticmethod
@@ -268,6 +266,9 @@ app = FastAPI(lifespan=lifespan)
 async def get_user_role(chat_id: int):
     """Получение аккаунта пользователя"""
     user = await models.User.aio_get_or_none(chat_id=chat_id)
+    student = await models.Student.aio_get_or_none(user_id = user)
+    """Получение аккаунта пользователя"""
+    user = await models.User.aio_get_or_none(chat_id=chat_id)
     student = await models.Student.aio_get_or_none(user_id=user)
     if student:
         return {
@@ -288,6 +289,22 @@ async def get_user_role(chat_id: int):
             'type': 'teacher',
             'id': discipline_list
         }
+        
+@app.post('/create/{chat_id}')
+async def create_user(chat_id: int):
+    """Создание аккаунта пользователя
+
+    Args:
+        chat_id (int): [Chat id user]
+
+    Returns:
+        [message]: [OK (200)]
+    """
+
+    # Создаём пользователя
+    await models.User.aio_get_or_create(
+        chat_id=chat_id,
+    )
         
 @app.post('/create/{chat_id}')
 async def create_user(chat_id: int):
@@ -567,6 +584,203 @@ async def get_discipline_by_id(discipline_id: int):
         raise HTTPException(status_code=404, detail="Дисциплина не найдена")
 
     lessons = await DB.aio_execute(discipline.lessons.group_by(models.Lesson.schedule))
+    return {
+        **discipline.to_dict(),
+        'schedules': {
+            'count': len(lessons),
+            'entities': [
+                lesson.schedule.to_dict() for lesson in lessons
+                if lesson.schedule.date >= Date.today()
+            ]
+        },
+    }
+    
+@app.get('/schedules/')
+async def get_schedules(date: Date = None):
+    """Получить список расписаний. Если date - не указан,
+ то верент расписание от текущей даты и позже"""
+    if date:
+        schedules = await DB.aio_execute(
+            models.Schedule
+            .filter(
+                date=date
+            )
+            .order_by(
+                models.Schedule.date.asc(),
+                models.Schedule.update_at.asc(),
+            )
+        )
+    else:
+        schedules = await DB.aio_execute(
+            models.Schedule.select().where(
+                models.Schedule.date >= Date.today()
+            )
+            .order_by(
+                models.Schedule.date.asc(),
+                models.Schedule.update_at.asc(),
+            )
+        )
+
+    return {
+        'count': len(schedules),
+        'entities': [schedule.to_dict() for schedule in schedules]
+    }
+
+
+async def get_dict_by_schedule(
+        schedule: models.Schedule,
+        group: models.Group = None):
+    """Получить полное расписание"""
+
+    lessons: Iterable[models.Lesson] = await DB.aio_execute(schedule.lessons)
+
+    result = {
+        'count': 0,
+        'entities': [],
+    }
+
+    for lesson in lessons:
+        if group and lesson.group != group:
+            continue
+
+        row = {
+            'group': lesson.group.to_dict(),
+            'pair': lesson.pair,
+            'discipline': lesson.discipline.to_dict(),
+            'auditory': lesson.auditory.to_dict(),
+        }
+        result['entities'].append(row)
+
+    result['count'] = len(result['entities'])
+    return result
+
+
+@app.get('/schedule/{schedule_id}/')
+async def get_schedule(schedule_id: int, group_id: int = None):
+    """Получение расписания по дисциплине
+
+    Args:
+        schedule_id (int): [номер дисциплины]
+        group_id (int, optional): [группа]. Defaults to None.
+
+    Returns:
+        [JSON]: [shedule,group]
+    """
+    schedule = await models.Schedule.aio_get(id=schedule_id)
+    group = await models.Group.aio_get(id=group_id) if group_id else None
+    return await get_dict_by_schedule(
+        schedule=schedule,
+        group=group
+    )
+
+
+@app.get("/schedule/teacher/{teacher_id}")
+async def get_teacher_schedule(teacher_id: int):
+    """Получение преподавателя по его айди
+
+    Args:
+        teacher_id (int): [teacher id or user id]
+
+    Raises:
+        HTTPException: [404]
+
+    Returns:
+        [response]: [date,group_name,pair,discipline_name,auditory_name]
+    """
+    # Получаем дисциплины преподавателя
+    disciplines = await Discipline.aio_filter(teacher__user_id=teacher_id)
+    if not disciplines:
+        raise HTTPException(status_code=404, detail="Преподаватель не найден или у него нет дисциплин")
+
+    # Получаем все занятия по этим дисциплинам
+    lessons = await Lesson.aio_filter(discipline__in=[d.id for d in disciplines], arhiv=False)
+
+    # Формируем ответ вручную
+    response = []
+    for lesson in lessons:
+        schedule = await Schedule.aio_get(id=lesson.schedule_id)
+        group = await Group.aio_get(id=lesson.group_id)
+        auditory = await Auditory.aio_get(id=lesson.auditory_id)
+        response.append({
+            "date": schedule.date,
+            "group_name": group.name,
+            "pair": lesson.pair,
+            "discipline_name": lesson.discipline.name,
+            "auditory_name": auditory.name
+        })
+
+    return response
+
+
+@app.get('/date/{id}')
+async def get_date_doc(id: int):
+    """По айди возвращает дату
+
+    Args:
+        id (int): [date]
+
+    Returns:
+        [date]: [date]
+    """
+    date = await models.Schedule.aio_get(id = id)
+    return {'date': date.date}
+
+@app.get('/groups/')
+async def get_groups():
+    """Получить список групп"""
+
+    groups = await DB.aio_execute(
+        models.Group.select()
+    )
+
+    return {
+        'count': len(groups),
+        'entities': [group.to_dict() for group in groups],
+    }
+
+
+@app.get('/group/{group_id}/')
+async def get_group_by_id(group_id: int):
+    """Получить группу"""
+
+    group = await models.Group.aio_get(id=group_id)
+    lessons = await DB.aio_execute(
+        group.lessons.group_by(models.Lesson.schedule)
+    )
+    return {
+        **group.to_dict(),
+        'schedules': {
+            'count': len(lessons),
+            'entities': [
+                lesson.schedule.to_dict() for lesson in lessons
+                if lesson.schedule.date >= Date.today()
+            ]
+        },
+    }
+
+
+@app.get('/disciplines/')
+async def get_discipline():
+    """Получить список дисциплин"""
+    disciplines = await DB.aio_execute(
+        models.Discipline.select()
+    )
+
+    return {
+        'count': len(disciplines),
+        'entities': [discipline.to_dict() for discipline in disciplines],
+    }
+
+
+@app.get('/discipline/{discipline_id}/')
+async def get_discipline_by_id(
+        discipline_id: int):
+    """Получить группу"""
+
+    discipline = await models.Discipline.aio_get(id=discipline_id)
+    lessons = await DB.aio_execute(
+        discipline.lessons.group_by(models.Lesson.schedule)
+    )
     return {
         **discipline.to_dict(),
         'schedules': {
