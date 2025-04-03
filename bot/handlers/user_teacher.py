@@ -6,7 +6,7 @@ from aiogram.types import Message,CallbackQuery,BotCommand
 from aiogram.fsm.context import FSMContext
 import bot.keys_board.teacher as tea
 import bot.state.state as stat
-from RequestsUrl import service
+from api.RequestsUrl import service
 from collections import defaultdict
 
 async def menu_teacher(message:Message,state:FSMContext,bot: Bot) -> None:

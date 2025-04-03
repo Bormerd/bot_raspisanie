@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 import bot.state.state as stat
 import bot.keys_board.register as reg
 import aiohttp
-from RequestsUrl import service
+from api.RequestsUrl import service
 from aiohttp import ClientResponseError
 
 async def command_start_handler(message: Message, state: FSMContext) -> None:

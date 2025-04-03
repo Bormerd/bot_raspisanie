@@ -1,7 +1,7 @@
 """Библеотеки для проверки пользователя"""
 from aiogram.filters import BaseFilter
 from aiogram.types import Message
-from RequestsUrl import service
+from api.RequestsUrl import service
 
 class CheakTeacher(BaseFilter):
     """Проверяет является ли пользователь преподователем"""

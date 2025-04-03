@@ -3,7 +3,7 @@ from aiogram.filters import CommandStart
 from aiogram import Dispatcher, F
 import bot.handlers.register as reg
 import bot.state.state as stat
-from RequestsUrl import AddressService
+from api.RequestsUrl import AddressService
 import bot.handlers.user_student as stu
 import bot.handlers.user_teacher as tea
 import bot.filters.cheak as cheak
@@ -13,8 +13,9 @@ from datetime import datetime, timedelta
 
 user_last_message = {}
 
+
 class ThrottlingMiddleware(BaseMiddleware):
-    def __init__(self, limit=2, interval=1):  # 2 сообщения в 5 секунд
+    def __init__(self, limit=2, interval=5):  # 2 сообщения в 5 секунд
         self.limit = limit
         self.interval = interval
         super().__init__()
@@ -39,6 +40,7 @@ class ThrottlingMiddleware(BaseMiddleware):
         user_last_message[user.id] = current_time
         return await handler(event, data)
 
+
 def function(dp: Dispatcher):
     """Регистрация команд"""
     dp.message.middleware(ThrottlingMiddleware(limit=2, interval=5))
@@ -48,13 +50,11 @@ def function(dp: Dispatcher):
     dp.callback_query.register(reg.teacher_register,F.data == "Преподаватель")
     dp.callback_query.register(reg.student_register,F.data == "Студент")
     dp.message.register(reg.command_start_handler, CommandStart())
-    dp.message.register(stu.menu_student, F.text == '/menu', cheak.CheakStudent())
-    dp.message.register(stu.discipline_schedule, F.text == '/schedule', cheak.CheakStudent())
-    dp.message.register(tea.teacher_schedule, F.text == '/schedule', cheak.CheakTeacher())
-    dp.message.register(tea.menu_teacher, F.text == '/menu', cheak.CheakTeacher())
+    dp.message.register(stu.menu_student, (F.text == '/menu') | (F.text == 'Меню'), cheak.CheakStudent())
+    dp.message.register(stu.discipline_schedule, (F.text == '/schedule') | (F.text == 'Расписание'), cheak.CheakStudent())
+    dp.message.register(tea.teacher_schedule, (F.text == '/schedule') | (F.text == 'Расписание'), cheak.CheakTeacher())
+    dp.message.register(tea.menu_teacher, (F.text == '/menu') | (F.text == 'Меню'), cheak.CheakTeacher())
     dp.message.register(tea.add_disciplines, (F.text == '/add_discipline') | (F.text == 'добавить дисциплину'), cheak.CheakTeacher())
     dp.message.register(tea.delete_discipline, (F.text == '/delete_discipline') |(F.text == 'удалить дисциплину'), cheak.CheakTeacher())
-    dp.message.register(stu.discipline_schedule, F.text.lower() == "расписание", cheak.CheakStudent())
-    dp.message.register(stu.send_bells_photo, F.text.lower() == "звонки", cheak.CheakStudent())
-    dp.message.register(stu.send_bells_photo, F.text == '/rating', cheak.CheakStudent())
+    dp.message.register(stu.send_bells_photo, (F.text == '/rating') |(F.text == 'Звонки'), cheak.CheakStudent())
     dp.message.register(stu.handle_text_message, cheak.CheakStudent())

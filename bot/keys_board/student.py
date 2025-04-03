@@ -1,6 +1,6 @@
 """Библиотека для создания кнопок студента"""
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-from RequestsUrl import service
+from api.RequestsUrl import service
 
 async def get_dates_keyboard():
     """Получение клавиатуры с датами"""

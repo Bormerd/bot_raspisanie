@@ -5,8 +5,10 @@ from aiogram import Bot,Dispatcher
 from dotenv import load_dotenv
 from bot.handlers.handlers import function
 import uvicorn
-import api
-from bot_notifier import BotNotifier
+from api import api
+from bot.handlers.bot_notifier import BotNotifier
+from cache.models import RedisCache
+import json
 
 load_dotenv(".env")
 bot = os.getenv('bot')
@@ -21,7 +23,10 @@ async def start_fastapi():
     server = uvicorn.Server(config)
     await server.serve()
 
-# Функция для запуска бота
+async def start_cache_test():
+    """Создание кэша"""
+    redis_cache = RedisCache()
+
 async def start_bot():
     """Запуск бота"""
     try:
@@ -34,7 +39,8 @@ async def start_bot():
 async def main():
     await asyncio.gather(
         start_fastapi(),
-        start_bot(),
+        # start_bot(),
+        start_cache_test()
     )
 
 # Точка входа
