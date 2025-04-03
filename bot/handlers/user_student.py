@@ -2,7 +2,7 @@ from datetime import datetime
 from aiogram.types import Message, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram import F
-from RequestsUrl import service
+from api.RequestsUrl import service
 from aiogram.types import BotCommand
 from bot.keys_board.student import get_dates_keyboard, Student_menu
 

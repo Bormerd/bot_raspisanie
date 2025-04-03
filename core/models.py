@@ -5,10 +5,10 @@ import peewee
 from peewee_async import PooledMySQLDatabase, AioModel
 
 
-DB_NAME = "rasp"
+DB_NAME = "schedule"
 DB_CONFIG = {
     "user": "root",
-    "password": "3010",
+    "password": "123456",
     "host": "localhost",
     "port": 3306,
 }
@@ -35,6 +35,7 @@ class BaseModel(AioModel):
     class Meta:
         """Подключение к БД"""
         database = DB
+
 
 class User(BaseModel):
     """Расписание"""
@@ -102,6 +103,7 @@ class Lesson(BaseModel):
         return (f"{self.schedule.date} {self.group.name} {self.pair} "
                 f"{self.discipline.name} {self.auditory.name}")
 
+
 class Student(BaseModel):
     """Модель связи между пользователями и группами"""
     user_id = peewee.ForeignKeyField(
@@ -117,6 +119,7 @@ class Student(BaseModel):
         on_update="CASCADE"
     )
 
+
 class Teacher(BaseModel):
     """Модель связи между пользователями и дисциплинами"""
     user_id = peewee.ForeignKeyField(
@@ -131,6 +134,7 @@ class Teacher(BaseModel):
         on_delete="CASCADE",
         on_update="CASCADE"
         )
+
 
 async def update_schedule(date: datetime, doc_id: str, schedule_data: dict):
     """Проверка на изменения в расписании и возврат новых объектов"""

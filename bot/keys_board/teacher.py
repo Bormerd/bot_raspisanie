@@ -2,7 +2,7 @@
 # может не хватать библеотек
 from aiogram.types import ReplyKeyboardMarkup,KeyboardButton,InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from RequestsUrl import service
+from api.RequestsUrl import service
 
 Teacher_menu = ReplyKeyboardMarkup(keyboard = [
     [

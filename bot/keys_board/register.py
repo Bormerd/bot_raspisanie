@@ -2,7 +2,7 @@
 # может не хватать библеотек
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton,InlineKeyboardMarkup
-from RequestsUrl import service
+from api.RequestsUrl import service
 import aiohttp
 
 Keyboard_register = InlineKeyboardMarkup(inline_keyboard=[
