@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from typing import Dict, Optional
 from fastapi import FastAPI, HTTPException
 from collections import defaultdict
-
+import datetime
 from core import models
 from core.models import DB, Discipline, Lesson, Schedule, Group, Auditory
 from core.parser import google
@@ -194,47 +194,60 @@ async def check_schedule_changes(last_check_time):
     print(f"Всего пользователей для уведомления: {len(affected_users)}")
     return affected_users
 
+TIME_SHORT_SLEEP = 15 * 60  # 15 минут в рабочее время (8:00-17:00)
+TIME_LONG_SLEEP = 60 * 60    # 1 час в нерабочее время
+
 async def parsing_schedule():
-    """Парсинг с периодичностью и отправкой уведомлений"""
-    print("Запущен процесс проверки изменений расписания...")
-    last_parsed_time = None
+    """Улучшенная функция проверки изменений"""
+    print("Инициализация сервиса уведомлений...")
+    last_parsed_time = datetime.now()  # Начинаем с текущего времени
     
     while True:
         try:
+            print("\n=== Начало цикла проверки ===")
             print("Выполняем парсинг расписания...")
             await google.run()
             
-            # Проверяем изменения только если это не первый запуск
-            if last_parsed_time is not None:
-                print(f"Проверяем изменения с {last_parsed_time}...")
-                affected_users = await check_schedule_changes(last_parsed_time)
-                
-                print(f"Найдено {len(affected_users)} пользователей для уведомления")
+            print(f"Проверяем изменения после {last_parsed_time}")
+            affected_users = await check_schedule_changes(last_parsed_time)
+            
+            if affected_users:
+                print(f"Найдено изменений для {len(affected_users)} пользователей")
                 for chat_id, schedule_date in affected_users:
                     try:
-                        print(f"Отправляем уведомление пользователю {chat_id} для даты {schedule_date}")
-                        await ScheduleNotifier.send_schedule_update(chat_id, schedule_date)
-                        await asyncio.sleep(0.1)  # Задержка между отправками
+                        print(f"Обработка пользователя {chat_id}...")
+                        user_info = await ScheduleNotifier.get_user_info(chat_id)
+                        if not user_info:
+                            print(f"Пользователь {chat_id} не найден")
+                            continue
+                            
+                        schedule_text = await ScheduleNotifier.get_full_day_schedule(schedule_date, user_info)
+                        if schedule_text:
+                            print(f"Отправка уведомления для {chat_id}")
+                            await BotNotifier.send_message(chat_id, schedule_text)
+                        else:
+                            print(f"Нет данных для {chat_id}")
+                            
+                        await asyncio.sleep(0.1)
                     except Exception as e:
-                        print(f"Ошибка при отправке уведомления {chat_id}: {e}")
+                        print(f"Ошибка обработки пользователя {chat_id}: {str(e)}")
+            else:
+                print("Изменений не обнаружено")
             
-            # Обновляем время последней проверки
-            last_parsed_time = DT.now()
-            print(f"Обновлено время последней проверки: {last_parsed_time}")
+            last_parsed_time = datetime.now()
+            print(f"Время последней проверки обновлено: {last_parsed_time}")
+            
+            now = datetime.now().time()
+            sleep_time = TIME_SHORT_SLEEP if 8 <= now.hour < 17 else TIME_LONG_SLEEP
+            print(f"Ожидание следующей проверки ({sleep_time} сек)...")
+            await asyncio.sleep(sleep_time)
             
         except Exception as e:
-            print(f"Критическая ошибка в parsing_schedule: {e}")
+            print(f"КРИТИЧЕСКАЯ ОШИБКА: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            await asyncio.sleep(60)
         
-        # Ждем перед следующим парсингом
-        now = DT.now().time()
-        sleep_time = TIME_SHORT_SLEEP if 8 <= now.hour < 17 else TIME_LONG_SLEEP
-        print(f"Ожидаем {sleep_time} секунд перед следующей проверкой...")
-        await asyncio.sleep(sleep_time)
-        
-# pylint: disable=E1101
-TIME_SHORT_SLEEP = 15 * 60 * 60
-TIME_LONG_SLEEP = 15 * 60 * 60 * 60
-
 class CreateUserType(BaseModel):
     chat_id: int
     type: str
