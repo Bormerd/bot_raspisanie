@@ -6,10 +6,13 @@ from dotenv import load_dotenv
 from bot.handlers.handlers import function
 import uvicorn
 import api
+from api import BotContainer
+from core.parser.google import run as parse_schedule
 
 load_dotenv(".env")
 bot=os.getenv('bot')
 bot=Bot(token=bot)
+BotContainer.bot = bot
 dp = Dispatcher()
 app = api.app
 

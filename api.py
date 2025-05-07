@@ -1,17 +1,40 @@
 # API для расписания костромского политеха
 
 import asyncio
-from typing import Iterable, List
+from typing import Iterable, List, Dict, Any
 from datetime import date as Date
 from datetime import datetime as DT
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from typing import Dict, Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, APIRouter
 
 from core import models
 from core.models import DB, Discipline, Lesson, Schedule, Group, Auditory
 from core.parser import google
+from core.notifications import send_schedule_updates
+from core.models import update_schedule
+
+
+router = APIRouter()
+
+# Глобальный объект для хранения бота
+class BotContainer:
+    bot = None
+
+def init_bot(bot_instance):
+    BotContainer.bot = bot_instance
+
+@router.post("/update_schedule/")
+async def api_update_schedule(date: Date, doc_id: str, schedule_data: Dict[str, Any]):
+    """API endpoint для обновления расписания с отправкой уведомлений"""
+    try:
+        changes = await update_schedule(date, doc_id, schedule_data)
+        await send_schedule_updates(BotContainer.bot, changes, date)
+        return {"status": "success", "changes": changes}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 # pylint: disable=E1101
 TIME_SHORT_SLEEP = 15 * 60 * 60
@@ -29,7 +52,7 @@ async def lifespan(app: FastAPI):
     async def parsing_schedule():
         """Парсинг с периодичностью"""
         while True:
-            await google.run()
+            await google.run(BotContainer.bot)
             now = DT.now().time()
             await asyncio.sleep(
                 TIME_SHORT_SLEEP

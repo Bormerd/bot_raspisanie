@@ -5,7 +5,7 @@ import peewee
 from peewee_async import PooledMySQLDatabase, AioModel
 
 
-DB_NAME = "rasp"
+DB_NAME = "raspisan"
 DB_CONFIG = {
     "user": "root",
     "password": "3010",
@@ -116,6 +116,10 @@ class Student(BaseModel):
         on_delete="CASCADE",
         on_update="CASCADE"
     )
+    @classmethod
+    async def aio_filter(cls, *args, **kwargs):
+        """Асинхронный аналог filter()"""
+        return await DB.aio_execute(cls.filter(*args, **kwargs))
 
 class Teacher(BaseModel):
     """Модель связи между пользователями и дисциплинами"""
@@ -132,8 +136,90 @@ class Teacher(BaseModel):
         on_update="CASCADE"
         )
 
+async def check_schedule_changes(date: datetime, doc_id: str, schedule_data: dict):
+    """Проверка изменений в расписании и возврат списка изменений"""
+    changes = {
+        'new_lessons': [],
+        'updated_lessons': [],
+        'deleted_lessons': []
+    }
+    
+    # Поиск существующего расписания
+    schedule = await Schedule.aio_get_or_none(date=date, doc_id=doc_id)
+    
+    if schedule is None:
+        # Все занятия новые, если расписания не было
+        for group_name, group_d in schedule_data.items():
+            group = await Group.aio_get_or_create(name=group_name)
+            for pair, lesson_d in group_d.items():
+                changes['new_lessons'].append({
+                    'group': group_name,
+                    'pair': pair,
+                    'discipline': lesson_d['discipline'],
+                    'auditory': lesson_d.get('auditory', '')
+                })
+        return changes
+    
+    # Собираем существующие занятия
+    existing_lessons = {}
+    lessons = await DB.aio_execute(
+        Lesson.select().where(
+            (Lesson.schedule == schedule) &
+            (Lesson.arhiv == False)
+        )
+    )
+    
+    for lesson in lessons:
+        key = f"{lesson.group.name}_{lesson.pair}"
+        existing_lessons[key] = {
+            'discipline': lesson.discipline.name,
+            'auditory': lesson.auditory.name,
+            'lesson_obj': lesson
+        }
+    
+    # Проверяем изменения
+    for group_name, group_d in schedule_data.items():
+        group = await Group.aio_get_or_create(name=group_name)
+        for pair, lesson_d in group_d.items():
+            key = f"{group_name}_{pair}"
+            if key not in existing_lessons:
+                # Новое занятие
+                changes['new_lessons'].append({
+                    'group': group_name,
+                    'pair': pair,
+                    'discipline': lesson_d['discipline'],
+                    'auditory': lesson_d.get('auditory', '')
+                })
+            else:
+                # Проверяем изменения в существующем занятии
+                existing = existing_lessons[key]
+                if (existing['discipline'] != lesson_d['discipline'] or 
+                    existing['auditory'] != lesson_d.get('auditory', '')):
+                    changes['updated_lessons'].append({
+                        'old': existing,
+                        'new': {
+                            'group': group_name,
+                            'pair': pair,
+                            'discipline': lesson_d['discipline'],
+                            'auditory': lesson_d.get('auditory', '')
+                        }
+                    })
+                del existing_lessons[key]
+    
+    # Оставшиеся в existing_lessons - удаленные занятия
+    for key, lesson in existing_lessons.items():
+        changes['deleted_lessons'].append({
+            'group': key.split('_')[0],
+            'pair': key.split('_')[1],
+            'discipline': lesson['discipline'],
+            'auditory': lesson['auditory']
+        })
+    
+    return changes
+
 async def update_schedule(date: datetime, doc_id: str, schedule_data: dict):
     """Проверка на изменения в расписании и возврат новых объектов"""
+    changes = await check_schedule_changes(date, doc_id, schedule_data)
 
     # Поиск или создание расписания
     schedule = await Schedule.aio_get_or_none(
@@ -191,6 +277,7 @@ async def update_schedule(date: datetime, doc_id: str, schedule_data: dict):
                     discipline=discipline,
                     group=group
                 )
+    return changes
 
 if __name__ == "__main__":
     with mysql.connector.connect(**DB_CONFIG) as connect:

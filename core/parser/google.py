@@ -4,9 +4,10 @@ import httpx
 from bs4 import BeautifulSoup
 from datetime import datetime
 from typing import Dict, Any
-
+from core.notifications import send_schedule_updates
 from core.utils import date as date_parse
 from core.models import update_schedule, Schedule, Lesson, Group, Discipline, Auditory
+from aiogram import Bot
 
 
 GROUP_PATTERN = r'^[1-4]-[1-2]\w[19][1]{,1}$'
@@ -190,11 +191,14 @@ async def get_schedule_by_doc(doc_id: str) -> dict:
     return context['schedule']
 
 
-async def run():
-    """Основная функция парсинга с обновлением времени изменения"""
-    print("Начало парсинга расписания...")
-    root_folder = await get_content_by_folder('1Z8V1jh0OZuW-e3m-O05D0n88_OdDPyTV')
+async def run(bot: Bot):
+    """Основная функция парсинга"""
+    if not bot:
+        raise ValueError("Bot instance is required!")
+
+    print(f"Начало парсинга (bot={bot})...")
     
+    root_folder = await get_content_by_folder('1Z8V1jh0OZuW-e3m-O05D0n88_OdDPyTV')
     for folder in root_folder:
         date = date_parse.parse_month_year(folder['name'])
         for doc in await get_content_by_folder(folder['id']):
@@ -203,25 +207,19 @@ async def run():
                 date = date.replace(day=day)
                 schedule_data = await get_schedule_by_doc(doc['id'])
                 
-                print(f"Обработка расписания на {date} (ID: {doc['id']})")
+                print(f"Обработка {date} (ID: {doc['id']}): {len(schedule_data)} групп")
                 
-                # Обновляем расписание
-                await update_schedule(
-                    date=date,
-                    doc_id=doc['id'],
-                    schedule_data=schedule_data
-                )
+                changes = await update_schedule(date, doc['id'], schedule_data)
+                if any(changes.values()):
+                    print(f"Изменения обнаружены: {changes}")
+                    await send_schedule_updates(bot, changes, date)
+                else:
+                    print("Нет изменений для отправки")
                 
-                # Явно обновляем время изменения
                 schedule = await Schedule.aio_get_or_none(date=date, doc_id=doc['id'])
                 if schedule:
                     schedule.update_at = datetime.now()
                     await schedule.aio_save()
-                    print(f"Обновлено время изменения для расписания {schedule.id}")
-                else:
-                    print(f"Расписание на {date} не найдено")
-                    
+                await send_schedule_updates(bot, changes, date)
             except Exception as e:
-                print(f"Ошибка при обработке документа {doc['id']}: {str(e)}")
-                import traceback
-                traceback.print_exc()
+                print(f"Ошибка при обработке {doc['id']}: {e}")
