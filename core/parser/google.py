@@ -1,11 +1,12 @@
 """Парсилка гугл диска"""
-
 import re
 import httpx
 from bs4 import BeautifulSoup
+from datetime import datetime
+from typing import Dict, Any
 
 from core.utils import date as date_parse
-from core.models import update_schedule
+from core.models import update_schedule, Schedule, Lesson, Group, Discipline, Auditory
 
 
 GROUP_PATTERN = r'^[1-4]-[1-2]\w[19][1]{,1}$'
@@ -190,20 +191,37 @@ async def get_schedule_by_doc(doc_id: str) -> dict:
 
 
 async def run():
-    """Запуск парсина расписания"""
-    root_folder = await get_content_by_folder(
-        '1Z8V1jh0OZuW-e3m-O05D0n88_OdDPyTV'
-    )
-
+    """Основная функция парсинга с обновлением времени изменения"""
+    print("Начало парсинга расписания...")
+    root_folder = await get_content_by_folder('1Z8V1jh0OZuW-e3m-O05D0n88_OdDPyTV')
+    
     for folder in root_folder:
         date = date_parse.parse_month_year(folder['name'])
         for doc in await get_content_by_folder(folder['id']):
-
-            day = int(doc['name'].strip().split(' ')[0])
-            date = date.replace(day=day)
-            schedule_data = await get_schedule_by_doc(doc['id'])
-            await update_schedule(
-                date=date,
-                doc_id=doc['id'],
-                schedule_data=schedule_data
-            )
+            try:
+                day = int(doc['name'].strip().split(' ')[0])
+                date = date.replace(day=day)
+                schedule_data = await get_schedule_by_doc(doc['id'])
+                
+                print(f"Обработка расписания на {date} (ID: {doc['id']})")
+                
+                # Обновляем расписание
+                await update_schedule(
+                    date=date,
+                    doc_id=doc['id'],
+                    schedule_data=schedule_data
+                )
+                
+                # Явно обновляем время изменения
+                schedule = await Schedule.aio_get_or_none(date=date, doc_id=doc['id'])
+                if schedule:
+                    schedule.update_at = datetime.now()
+                    await schedule.aio_save()
+                    print(f"Обновлено время изменения для расписания {schedule.id}")
+                else:
+                    print(f"Расписание на {date} не найдено")
+                    
+            except Exception as e:
+                print(f"Ошибка при обработке документа {doc['id']}: {str(e)}")
+                import traceback
+                traceback.print_exc()

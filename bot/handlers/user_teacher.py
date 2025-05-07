@@ -24,11 +24,6 @@ async def menu_teacher(message:Message,state:FSMContext,bot: Bot) -> None:
     ]
     await bot.set_my_commands(commands)
 
-async def discipline_schedule (message: Message):
-    """Отправка расписания"""
-    # написать запрос для вывода расписания ОДНОЙ дисциплины
-    pass
-
 async def teacher_schedule(message: Message):
     """Отправка расписания для преподавателя"""
     teacher_id = message.chat.id
@@ -62,25 +57,32 @@ async def teacher_schedule(message: Message):
             if detail.get("discipline", {}).get("id") in discipline_ids:
                 lessons_by_date[schedule['date']].append(detail)
 
-        # if lessons_by_date:
-        #     await message.answer("У вас нет занятий в текущем расписании.")
-        #     return
-
         # Формируем и отправляем сообщения
         for date, lessons in lessons_by_date.items():
             # Сортируем занятия по номеру пары
             lessons_sorted = sorted(lessons, key=lambda x: x.get("pair"))
 
             # Формируем сообщение
-            message_text = f"<b>Расписание на {date}:</b>\n"
-            for lesson in lessons_sorted:
-                discipline = lesson.get("discipline", {}).get("name", "Неизвестно")
-                auditory = lesson.get("auditory", {}).get("name", "Неизвестно")
-                pair = lesson.get("pair")
-                group = lesson.get("group", {}).get("name", "Неизвестно")
-                message_text += f"<b>{pair}) {discipline} ({auditory})</b> для группы <b>{group}</b>\n"
+            message_text = f"📅 <b>{date}:</b>\n\n"
+    
+    # Если расписание пустое, сообщаем об этом
+            if not lessons_sorted:
+                message_text += "🎉 <i>На этот день занятий нет!</i>"
+            else:
+                # Проходим по каждому уроку и добавляем информацию в сообщение
+                for lesson in lessons_sorted:
+                    discipline = lesson.get("discipline", {}).get("name", "Неизвестно")
+                    auditory = lesson.get("auditory", {}).get("name", "Неизвестно")
+                    pair = lesson.get("pair", "Неизвестно")
+                    group = lesson.get("group", {}).get("name", "Неизвестно")
 
-            # Отправляем сообщение
+                    # Форматируем информацию о паре
+                    message_text += (
+                        f"{pair}️⃣ 📖 <b>{discipline}</b> | 🚪 <b>{auditory}</b>\n"
+                    )
+            # Добавляем перерыв, если это необходимо (например, после второй пары)
+
+            # Отправляем сообщение с HTML-форматированием
             await message.answer(message_text, parse_mode="HTML")
 
 async def add_disciplines (message: Message, state: FSMContext):
@@ -93,6 +95,7 @@ async def add_disciplines (message: Message, state: FSMContext):
         await message.answer("На данный момент такой дисциплины нет.")
 
 async def add_discipline_user(callbak: CallbackQuery):
+    await callbak.message.delete()
     response = callbak.data.split('_')
     if response[0] == 'disciplines':
         await service.post_request('/create/teacher/', json={
@@ -100,3 +103,20 @@ async def add_discipline_user(callbak: CallbackQuery):
             'type': response[1]
         })
     await callbak.message.answer("Дисциплина добавлена")
+
+async def delete_discipline(message: Message, state: FSMContext):
+    """Функция удаления дисциплин преподавателю."""
+    chat_id = message.from_user.id
+    keyboard,count = await tea.user_discipline(chat_id)
+    if count != 1:
+        await message.answer("Выберите дисциплину:", reply_markup=keyboard)
+        await state.set_state(stat.User.delete_discipline)
+    else:
+        await message.answer("У вас только 1 дисциплина.")
+
+async def delete_discipline_user(callbak:CallbackQuery):
+    await callbak.message.delete()
+    response = callbak.data.split('_')
+    await service.delete_request(f'/teachet/discipline/{response[1]}')
+    await callbak.message.answer("Дисциплина удалена")
+    
